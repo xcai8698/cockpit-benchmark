@@ -3,28 +3,287 @@
   "$id": "https://example.invalid/cockpit-benchmark/analysis-result.schema.json",
   "title": "Cockpit Benchmark Analysis Result",
   "type": "object",
-  "required": ["schema_version", "analysis_id", "created_at", "mode", "review_status", "rubric_id", "rubric_version", "video_metadata", "duration_sec", "sampled_frames", "observations", "scores", "overall_score_100", "warnings"],
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "created_at",
+    "mode",
+    "review_status",
+    "rubric_id",
+    "rubric_version",
+    "video_metadata",
+    "duration_sec",
+    "sampled_frames",
+    "observations",
+    "scores",
+    "overall_score_100",
+    "warnings"
+  ],
   "properties": {
-    "schema_version": {"type": "string"},
-    "analysis_id": {"type": "string"},
-    "created_at": {"type": "string", "format": "date-time"},
-    "mode": {"enum": ["openai_compatible_vlm", "no_model"]},
-    "model_name": {"type": ["string", "null"]},
-    "review_status": {"enum": ["pending", "approved", "rejected"]},
-    "reviewer": {"type": ["string", "null"]},
-    "reviewed_at": {"type": ["string", "null"]},
-    "review_notes": {"type": ["string", "null"]},
-    "review_history": {"type": "array", "items": {"type": "object"}},
-    "rubric_id": {"type": "string"},
-    "rubric_version": {"type": "string"},
-    "video_metadata": {"type": "object"},
-    "duration_sec": {"type": "number", "minimum": 0},
-    "sampled_frames": {"type": "array", "items": {"type": "object", "required": ["evidence_id", "timestamp_sec", "file_name", "sha256", "source_video"]}},
-    "observations": {"type": "array", "items": {"type": "object", "required": ["evidence_id", "observation"]}},
-    "scores": {"type": "array", "items": {"type": "object", "required": ["metric_id", "score", "status", "rationale", "evidence_ids", "weight"], "properties": {"score": {"type": ["integer", "null"], "minimum": 1, "maximum": 5}, "status": {"enum": ["scored", "evidence_insufficient"]}, "evidence_ids": {"type": "array", "items": {"type": "string"}}}}, "uniqueItems": true},
-    "overall_score_100": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
-    "warnings": {"type": "array", "items": {"type": "string"}},
-    "provenance_note": {"type": "string"}
+    "schema_version": {
+      "type": "string"
+    },
+    "analysis_id": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "mode": {
+      "enum": [
+        "openai_compatible_vlm",
+        "no_model"
+      ]
+    },
+    "model_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "review_status": {
+      "enum": [
+        "pending",
+        "approved",
+        "rejected"
+      ]
+    },
+    "reviewer": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reviewed_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "review_notes": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "review_history": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "rubric_id": {
+      "type": "string"
+    },
+    "rubric_version": {
+      "type": "string"
+    },
+    "video_metadata": {
+      "type": "object"
+    },
+    "duration_sec": {
+      "type": "number",
+      "minimum": 0
+    },
+    "sampled_frames": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "evidence_id",
+          "timestamp_sec",
+          "file_name",
+          "sha256",
+          "source_video"
+        ]
+      }
+    },
+    "observations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "evidence_id",
+          "observation"
+        ]
+      }
+    },
+    "scores": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "metric_id",
+          "score",
+          "status",
+          "rationale",
+          "evidence_ids",
+          "weight"
+        ],
+        "properties": {
+          "score": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 5
+          },
+          "status": {
+            "enum": [
+              "scored",
+              "evidence_insufficient"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "uniqueItems": true
+    },
+    "overall_score_100": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 100
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "provenance_note": {
+      "type": "string"
+    },
+    "sampling_manifest": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "policy_id",
+        "policy_version",
+        "interval_sec",
+        "max_frames",
+        "candidate_count",
+        "max_gap_sec"
+      ],
+      "properties": {
+        "policy_id": {
+          "type": "string"
+        },
+        "policy_version": {
+          "type": "string"
+        },
+        "interval_sec": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_frames": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "scene_detection_attempted": {
+          "type": "boolean"
+        },
+        "scene_detection_succeeded": {
+          "type": "boolean"
+        },
+        "scene_threshold": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "scene_change_candidates_sec": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "scene_change_timestamps_used_sec": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "supplemental_timestamps_requested_sec": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "supplemental_timestamps_used_sec": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "supplemental_timestamps_dropped_sec": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "candidate_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "selected_timestamps_sec": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "max_gap_sec": {
+          "type": "number",
+          "minimum": 0
+        },
+        "coverage_gaps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "start_sec",
+              "end_sec",
+              "duration_sec"
+            ],
+            "properties": {
+              "start_sec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "end_sec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "duration_sec": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
   },
   "additionalProperties": false
 }
