@@ -20,6 +20,7 @@ button{border:0;border-radius:8px;padding:10px 14px;background:var(--blue);color
 <label>品牌<input name="vehicle_make" placeholder="可选"></label><label>车型<input name="vehicle_model" placeholder="可选"></label>
 <label>年款<input name="model_year" placeholder="例如 2026"></label><label>软件版本<input name="software_version" placeholder="可选"></label>
 <label class="full">体验场景<input name="scenario" placeholder="例如：导航目的地搜索、空调控制"></label>
+<label class="full">补充关键证据时间点（秒，可选）<input name="supplemental_timestamps_sec" placeholder="例如：12.5, 18, 42.2"><span class="muted">用逗号或分号分隔。适合补充转向灯、弹窗、状态变化等短暂片段；不会改变全局抽帧上限。</span></label>
 <label class="full">原始视频链接（仅记录，不自动下载）<input name="source_url" type="url" placeholder="https://…"></label>
 <div class="full"><button id="submit" type="submit">上传并分析</button> <span id="message" class="muted"></span></div>
 </form><div class="note">正式榜单前必须人工复核。评分仅针对视频中可观察到的内容，不推断未展示的功能或内部性能。请只上传获准使用的视频。</div>
@@ -34,6 +35,13 @@ async function review(id,decision){const reviewer=prompt('审核人标识（姓�
 async function render(job){const box=el('article',undefined,'job'),head=el('div');head.append(el('strong',job.video_metadata?.original_filename||job.analysis_id),el('span',job.status+(job.stage?' · '+job.stage:''),'status'));box.append(head);box.append(el('div',[job.video_metadata?.vehicle_make,job.video_metadata?.vehicle_model,job.video_metadata?.model_year,job.video_metadata?.scenario].filter(Boolean).join(' · ')||'未填写车型/场景','muted'));
 if(job.error)box.append(el('pre',job.error));
 if(['completed','completed_unscored'].includes(job.status)){try{const report=await api('/api/v1/analyses/'+job.analysis_id+'/report');box.append(el('div','Rubric '+report.rubric_id+' v'+report.rubric_version+' · '+report.mode+' · 复核：'+report.review_status,'muted'));
+if(report.sampling_manifest){
+ const sm=report.sampling_manifest;
+ box.append(el('div','抽帧策略：'+sm.policy_id+' v'+sm.policy_version+' · 间隔 '+sm.interval_sec+'s · 帧预算 '+sm.max_frames+' · 实际 '+sm.selected_timestamps_sec.length+' 帧','muted'));
+ if(sm.supplemental_timestamps_used_sec?.length)box.append(el('div','补充时间点：'+sm.supplemental_timestamps_used_sec.map(t=>t+'s').join(', '),'muted'));
+ if(sm.scene_detection_attempted)box.append(el('div','场景切换检测：'+(sm.scene_detection_succeeded?'已完成（候选 '+sm.scene_change_candidates_sec.length+' 个）':'未完成，使用时序覆盖回退'),'muted'));
+ if(sm.coverage_gaps?.length)box.append(el('div','采样覆盖缺口（大于目标间隔）：'+sm.coverage_gaps.map(g=>g.start_sec+'–'+g.end_sec+'s').join(', '),'muted'));
+}
 const scores=el('div',undefined,'scores');for(const s of report.scores){const c=el('div',undefined,'score');c.append(el('div',s.metric_id),el('strong',s.score==null?'证据不足 / 未评分':s.score+' / 5'),el('div',s.rationale,'muted'),el('div','证据：'+(s.evidence_ids.join(', ')||'无'),'muted'));scores.append(c);}box.append(scores);
 box.append(el('div','证据帧（'+report.sampled_frames.length+'）'));const frames=el('div',undefined,'frames');for(const f of report.sampled_frames){const c=el('div',undefined,'frame'),img=el('img');img.loading='lazy';img.src='/api/v1/analyses/'+job.analysis_id+'/evidence/'+f.file_name;img.alt=f.evidence_id;c.append(img,el('div',f.evidence_id+' · 目标时间 '+Number(f.timestamp_sec).toFixed(3)+'s'));frames.append(c);}box.append(frames);
 if(report.warnings?.length)box.append(el('pre','提示：\n'+report.warnings.join('\n')));

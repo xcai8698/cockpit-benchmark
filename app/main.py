@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 import uuid
 from pathlib import Path
@@ -27,6 +28,31 @@ class ReviewRequest(BaseModel):
 def _validate_analysis_id(analysis_id: str) -> None:
     if not re.fullmatch(r"[0-9a-f]{16}", analysis_id):
         raise HTTPException(status_code=404, detail="Analysis not found")
+
+
+def _parse_supplemental_timestamps(raw: str | None) -> list[float]:
+    """Parse optional comma/semicolon-separated frame timestamps in seconds."""
+    if not raw or not raw.strip():
+        return []
+    tokens = [token.strip() for token in re.split(r"[,;]", raw) if token.strip()]
+    if len(tokens) > 50:
+        raise HTTPException(status_code=422, detail="At most 50 supplemental timestamps are allowed")
+    values: list[float] = []
+    for token in tokens:
+        try:
+            value = float(token)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid supplemental timestamp: {token!r}",
+            ) from exc
+        if not math.isfinite(value) or value < 0:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Supplemental timestamps must be finite, non-negative seconds: {token!r}",
+            )
+        values.append(round(value, 3))
+    return sorted(set(values))
 
 
 def _public_job(job: dict) -> dict:
@@ -80,7 +106,9 @@ async def create_analysis(
     software_version: Annotated[str | None, Form()] = None,
     scenario: Annotated[str | None, Form()] = None,
     source_url: Annotated[str | None, Form()] = None,
+    supplemental_timestamps_sec: Annotated[str | None, Form()] = None,
 ):
+    supplemental_timestamps = _parse_supplemental_timestamps(supplemental_timestamps_sec)
     original_name = safe_name(video.filename)
     extension = Path(original_name).suffix.lower()
     if extension not in ALLOWED_EXTENSIONS:
@@ -128,6 +156,7 @@ async def create_analysis(
         "video_path": str(video_path),
         "video_size_bytes": size_bytes,
         "video_metadata": metadata,
+        "sampling_options": {"supplemental_timestamps_sec": supplemental_timestamps},
         "error": None,
     }
     create_job(job)

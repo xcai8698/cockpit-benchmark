@@ -128,3 +128,29 @@ def test_evidence_endpoint_rejects_unexpected_filename():
     })
     response = client.get(f"/api/v1/analyses/{analysis_id}/evidence/secret.txt")
     assert response.status_code == 400
+
+
+def test_supplemental_timestamp_parser_accepts_seconds_and_deduplicates():
+    assert main._parse_supplemental_timestamps("12.5, 18;12.5, 0") == [0.0, 12.5, 18.0]
+    assert main._parse_supplemental_timestamps(None) == []
+    assert main._parse_supplemental_timestamps(" , ; ") == []
+
+
+def test_supplemental_timestamp_parser_rejects_invalid_values():
+    from fastapi import HTTPException
+    import pytest
+
+    for value in ("NaN", "inf", "-1", "not-a-time"):
+        with pytest.raises(HTTPException) as error:
+            main._parse_supplemental_timestamps(value)
+        assert error.value.status_code == 422
+
+
+def test_supplemental_timestamp_parser_enforces_count_limit():
+    from fastapi import HTTPException
+    import pytest
+
+    raw = ",".join(str(i) for i in range(51))
+    with pytest.raises(HTTPException) as error:
+        main._parse_supplemental_timestamps(raw)
+    assert error.value.status_code == 422

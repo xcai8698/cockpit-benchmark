@@ -11,6 +11,7 @@ Implemented:
 - Manual upload of a local video file.
 - FFprobe duration check and FFmpeg frame extraction.
 - Evidence IDs, seek-target timestamps, frame dimensions, and SHA-256 hashes.
+- Versioned sampling manifest; optional manually supplied timestamps; opt-in FFmpeg scene-cut detection with temporal-coverage fallback.
 - Optional OpenAI-compatible VLM call using sampled frames.
 - Rubric-driven structured observations and scores, with validation of evidence IDs and score completeness.
 - Persistent local job/report JSON, browser UI, review endpoint, and Docker/local-run setup.
@@ -50,6 +51,9 @@ AIHOT integration scaffold is separate from the Analyzer and has not been regist
 ## 4. Evidence and scoring rules
 
 - Every extracted image has an evidence ID, seek-target timestamp, dimensions, filename, and SHA-256 hash.
+- Each report records `sampling_manifest` with policy/version, interval and frame cap, selected timestamps, scene candidates, supplemental timestamp disposition, maximum gap, and coverage gaps.
+- `uniform_v1` remains the default and preserves historical fixed-interval behavior. `scene_aware_v1` is opt-in because it adds a full video decode pass; it detects coarse visual cuts, not semantic interactions.
+- Uploaders may provide supplemental timestamps as comma/semicolon-separated seconds. Supplemental frames share the global `MAX_FRAMES` cap and are prioritized; out-of-range timestamps are ignored with warnings.
 - The VLM may only cite evidence IDs supplied in the current analysis.
 - Unknown IDs, duplicate rubric scores, malformed scores, and empty rationales are rejected or downgraded.
 - A rubric metric omitted by the model becomes evidence-insufficient, not a default numeric score.
@@ -95,7 +99,15 @@ This is an internal-development MVP, not an internet-facing service. Before shar
 5. Treat source URLs as descriptive metadata only; the code does not fetch remote URLs.
 6. Adapt the AIHOT scaffold against a specific source checkout, then run its typecheck, tests, migrations, and end-to-end tests.
 
-## 8. Next milestones
+## 8. Sampling policy and acceptance notes
+
+- Default stays on `uniform_v1` until a fixed set of videos demonstrates that scene-aware sampling improves evidence recall without unfairly changing temporal coverage.
+- `scene_aware_v1` uses a downsampled proxy stream and an FFmpeg scene score threshold. A scene cut is only a visual transition candidate, not proof of an interaction or a state change.
+- For benchmark comparisons, lock the sampling policy/version, frame cap, interval, and supplemental timestamps for all comparable videos. Record policy changes as a benchmark protocol change, not as an invisible implementation detail.
+- Review short interactions (turn-signal telltales, popups, transient warnings) using explicit supplemental timestamps until a validated interaction/event detector exists.
+- The planner is deterministic for a given duration, configuration, scene-candidate list, and supplemental timestamp list. FFmpeg version and source-video hash should also be pinned in a production audit record.
+
+## 9. Next milestones
 
 Sprint 3 — CI hardening: keep the GitHub Actions Python suite green, add tests for upload boundaries and evidence/report invariants, and fix packaging issues revealed by clean CI runs.
 
