@@ -1,0 +1,74 @@
+{
+  "rubric_id": "cockpit-basic-usability",
+  "version": "1.0.0",
+  "title": "座舱界面与可观察交互体验（MVP）",
+  "scope_note": "只评价提供的视频采样帧中可观察到的界面与状态反馈。不能据此推断系统内部性能、识别准确率、响应延迟或未展示的功能。该 rubric 是项目初始草案，不代表 MISTA、J.D. Power 或任何行业标准。",
+  "score_scale": {
+    "min": 1,
+    "max": 5,
+    "meaning": {
+      "1": "明显困难：现有证据显示该项存在严重可观察问题",
+      "2": "较差：证据显示使用或理解存在明显障碍",
+      "3": "一般：基本可用，但可见的信息或状态反馈有可改进空间",
+      "4": "良好：证据显示界面/反馈清晰，未见明显障碍",
+      "5": "优秀：证据清晰且一致地支持高可读性/可理解性",
+      "null": "证据不足：视频没有展示足够信息，禁止猜测"
+    }
+  },
+  "metrics": [
+    {
+      "metric_id": "ui_legibility",
+      "name": "界面信息可读性",
+      "definition": "画面内文字、图标、层级与关键状态是否可辨识。只依据帧中可见内容，不推断驾驶员真实阅读效果。",
+      "weight": 0.35,
+      "anchors": {
+        "1": "关键文字/状态明显不可辨识或严重遮挡",
+        "2": "多个关键元素难以辨认，层级明显混乱",
+        "3": "主要信息可见，但存在局部拥挤、对比度或层级问题",
+        "4": "主要信息清晰，层级大体明确",
+        "5": "关键元素清晰突出，信息层级与状态区分一致"
+      },
+      "evidence_required": true
+    },
+    {
+      "metric_id": "interaction_flow_visibility",
+      "name": "交互流程可理解性",
+      "definition": "视频实际展示的操作步骤与界面状态变化是否容易跟随。未展示完整步骤时，不得推断整个任务流程质量。",
+      "weight": 0.35,
+      "anchors": {
+        "1": "已展示的步骤出现明显断裂或难以理解的状态跳转",
+        "2": "多个步骤间的关系不清晰，操作上下文容易丢失",
+        "3": "大体可跟随，但局部步骤/状态衔接不清楚",
+        "4": "展示出来的步骤顺序清晰，状态变化容易理解",
+        "5": "完整展示的操作路径连贯，关键状态过渡清晰一致"
+      },
+      "evidence_required": true
+    },
+    {
+      "metric_id": "feedback_clarity",
+      "name": "操作结果反馈清晰度",
+      "definition": "在视频实际展示的动作之后，界面是否出现可辨识的状态或结果反馈。静态帧无法证明真实响应速度；无动作上下文时应判证据不足。",
+      "weight": 0.30,
+      "anchors": {
+        "1": "有明确操作上下文，但未见应有的结果/状态反馈或反馈互相矛盾",
+        "2": "反馈存在但容易误解，或与操作目标联系不清",
+        "3": "部分反馈可见，但完成状态不够明确",
+        "4": "结果/状态反馈清楚且与已展示动作一致",
+        "5": "关键结果和状态变化均清晰、一致且容易辨识"
+      },
+      "evidence_required": true
+    }
+  ],
+  "aggregation": {
+    "method": "weighted_mean_normalized_to_100",
+    "only_when_all_metrics_scored": true,
+    "round_digits": 2,
+    "note": "只要任一指标证据不足，overall_score_100 必须为 null，避免把缺失证据伪装成低分或高分。"
+  },
+  "governance": {
+    "human_review_required": true,
+    "publication_requires_review_status": "approved",
+    "retain_evidence_hashes": true,
+    "versioning_rule": "修改指标定义、权重、锚点或聚合规则必须升级 rubric version；旧结果保留原版本，不覆盖重算。"
+  }
+}
