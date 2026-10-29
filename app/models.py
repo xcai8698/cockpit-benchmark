@@ -30,6 +30,31 @@ class EvidenceFrame(BaseModel):
     source_video: str
 
 
+class CoverageGap(BaseModel):
+    start_sec: float = Field(ge=0)
+    end_sec: float = Field(ge=0)
+    duration_sec: float = Field(ge=0)
+
+
+class SamplingManifest(BaseModel):
+    policy_id: str
+    policy_version: str
+    interval_sec: int = Field(gt=0)
+    max_frames: int = Field(gt=0)
+    scene_detection_attempted: bool = False
+    scene_detection_succeeded: bool = False
+    scene_threshold: float | None = Field(default=None, gt=0, lt=1)
+    scene_change_candidates_sec: list[float] = Field(default_factory=list)
+    scene_change_timestamps_used_sec: list[float] = Field(default_factory=list)
+    supplemental_timestamps_requested_sec: list[float] = Field(default_factory=list)
+    supplemental_timestamps_used_sec: list[float] = Field(default_factory=list)
+    supplemental_timestamps_dropped_sec: list[float] = Field(default_factory=list)
+    candidate_count: int = Field(ge=0)
+    selected_timestamps_sec: list[float] = Field(default_factory=list)
+    max_gap_sec: float = Field(ge=0)
+    coverage_gaps: list[CoverageGap] = Field(default_factory=list)
+
+
 class Observation(BaseModel):
     evidence_id: str
     observation: str = Field(min_length=1, max_length=1200)
@@ -71,6 +96,7 @@ class AnalysisResult(BaseModel):
     video_metadata: VideoMetadata
     duration_sec: float
     sampled_frames: list[EvidenceFrame]
+    sampling_manifest: SamplingManifest | None = None
     observations: list[Observation] = Field(default_factory=list)
     scores: list[MetricScore]
     overall_score_100: float | None = None
