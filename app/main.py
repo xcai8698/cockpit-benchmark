@@ -47,7 +47,7 @@ def safe_name(name: str | None) -> str:
     parsed = Path(raw)
     suffix = parsed.suffix.lower()
     stem = raw[:-len(parsed.suffix)] if parsed.suffix else raw
-    stem = re.sub(r"[^\\w.-]+", "_", stem, flags=re.UNICODE).strip("._")
+    stem = re.sub(r"[^\w.-]+", "_", stem, flags=re.UNICODE).strip("._")
     stem = stem[:100] or "uploaded-video"
     # Normalize the suffix casing, and only sanitize the stem. The caller performs
     # the allow-list check on this suffix before writing the uploaded file.
