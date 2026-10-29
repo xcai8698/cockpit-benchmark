@@ -218,8 +218,10 @@ def plan_sampling(
 
     uniform = sample_timestamps(duration_sec, interval_sec, max_frames)
     grid = _grid_timestamps(duration_sec, interval_sec)
-    valid_manual, invalid_manual = _normalise_event_timestamps(supplemental_timestamps, duration_sec)
-    valid_scenes, invalid_scenes = _normalise_event_timestamps(scene_change_timestamps, duration_sec)
+    requested_values = list(supplemental_timestamps)
+    scene_values = list(scene_change_timestamps)
+    valid_manual, invalid_manual = _normalise_event_timestamps(requested_values, duration_sec)
+    valid_scenes, invalid_scenes = _normalise_event_timestamps(scene_values, duration_sec)
     warnings: list[str] = []
     if invalid_manual:
         warnings.append(
@@ -228,7 +230,7 @@ def plan_sampling(
     if invalid_scenes:
         warnings.append(f"Ignored {len(invalid_scenes)} invalid scene-change timestamp(s).")
 
-    requested_manual, _ = _normalise_event_timestamps(supplemental_timestamps, float("inf"))
+    requested_manual, _ = _normalise_event_timestamps(requested_values, float("inf"))
     if len(valid_manual) > max_frames:
         used_manual = _evenly_select(valid_manual, max_frames)
         dropped_manual = [t for t in valid_manual if t not in used_manual]
@@ -253,7 +255,7 @@ def plan_sampling(
     selected.extend(selected_scenes)
     selected = sorted(set(selected))
 
-    if not valid_manual and not selected_scenes and policy_id == "uniform_v1":
+    if not valid_manual and not selected_scenes and not valid_scenes:
         timestamps = uniform
     else:
         # Include the full fixed-interval grid and uniform anchors as filler candidates.
@@ -302,7 +304,7 @@ def build_sampling_plan(
         try:
             scene_candidates = detect_scene_changes(video_path)
             succeeded = True
-        except (VideoProcessingError, OSError, subprocess.SubprocessError) as exc:
+        except (VideoProcessingError, OSError, ValueError, subprocess.SubprocessError) as exc:
             # Scene detection is an enhancement, not a reason to lose the baseline analysis.
             warnings.append(f"Scene detection unavailable; fell back to temporal coverage: {exc}")
 
