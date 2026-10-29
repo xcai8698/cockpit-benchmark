@@ -26,6 +26,8 @@ button{border:0;border-radius:8px;padding:10px 14px;background:var(--blue);color
 </section><section class="panel"><h2>最近任务</h2><div id="jobs" class="muted">正在加载…</div></section></main>
 <script>
 const form=document.querySelector('#form'),submit=document.querySelector('#submit'),message=document.querySelector('#message'),jobs=document.querySelector('#jobs');
+let refreshing = false;
+let lastJobSignature = '';
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text);if(cls)n.className=cls;return n;};
 async function api(url,options){const r=await fetch(url,options);let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.detail||r.statusText);return d;}
 async function review(id,decision){const reviewer=prompt('审核人标识（姓名或工号）：');if(!reviewer||!reviewer.trim())return;const notes=prompt(decision==='approved'?'审核备注（可留空）：':'驳回原因：')||'';try{await api('/api/v1/analyses/'+id+'/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reviewer:reviewer.trim(),decision,notes})});message.textContent='审核状态已更新';await refresh();}catch(e){message.textContent='审核失败：'+e.message;}}
@@ -35,13 +37,47 @@ if(['completed','completed_unscored'].includes(job.status)){try{const report=awa
 const scores=el('div',undefined,'scores');for(const s of report.scores){const c=el('div',undefined,'score');c.append(el('div',s.metric_id),el('strong',s.score==null?'证据不足 / 未评分':s.score+' / 5'),el('div',s.rationale,'muted'),el('div','证据：'+(s.evidence_ids.join(', ')||'无'),'muted'));scores.append(c);}box.append(scores);
 box.append(el('div','证据帧（'+report.sampled_frames.length+'）'));const frames=el('div',undefined,'frames');for(const f of report.sampled_frames){const c=el('div',undefined,'frame'),img=el('img');img.loading='lazy';img.src='/api/v1/analyses/'+job.analysis_id+'/evidence/'+f.file_name;img.alt=f.evidence_id;c.append(img,el('div',f.evidence_id+' · 目标时间 '+Number(f.timestamp_sec).toFixed(3)+'s'));frames.append(c);}box.append(frames);
 if(report.warnings?.length)box.append(el('pre','提示：\n'+report.warnings.join('\n')));
-if(report.review_status==='pending'){const controls=el('div');controls.style.display='flex';controls.style.gap='8px';controls.style.marginTop='12px';const reject=el('button','驳回结果','secondary');reject.onclick=()=>review(job.analysis_id,'rejected');controls.append(reject);
-if(report.mode!=='no_model'&&report.overall_score_100!=null&&report.scores.length&&report.scores.every(s=>s.score!=null&&s.evidence_ids.length)){const approve=el('button','审核通过');approve.onclick=()=>review(job.analysis_id,'approved');controls.append(approve);}box.append(controls);}
+if(report.review_status==='pending'){const controls=el('div');controls.style.display='flex';controls.style.gap='8px';controls.style.marginTop='12px';const reject=el('button','驳回结果','secondary');reject.id='review-reject-'+job.analysis_id;reject.onclick=()=>review(job.analysis_id,'rejected');controls.append(reject);
+if(report.mode!=='no_model'&&report.overall_score_100!=null&&report.scores.length&&report.scores.every(s=>s.score!=null&&s.evidence_ids.length)){const approve=el('button','审核通过');approve.id='review-approve-'+job.analysis_id;approve.onclick=()=>review(job.analysis_id,'approved');controls.append(approve);}box.append(controls);}
 else box.append(el('div','审核状态：'+report.review_status+' · 审核人：'+(report.reviewer||'未记录')+' · '+(report.reviewed_at||''),'muted'));
 const link=el('a','打开 JSON 报告');link.href='/api/v1/analyses/'+job.analysis_id+'/report';link.target='_blank';link.rel='noreferrer';box.append(link);
 }catch(e){box.append(el('div','报告读取失败：'+e.message,'muted'));}}
 return box;}
-async function refresh(){try{const data=await api('/api/v1/analyses?limit=20');jobs.replaceChildren();if(!data.items.length){jobs.textContent='暂无任务。上传一段获准使用的视频开始验证。';return;}for(const j of data.items)jobs.append(await render(j));}catch(e){jobs.textContent='加载失败：'+e.message;}}
+async function refresh(){
+ if(refreshing)return;
+ refreshing=true;
+ const savedX=window.scrollX,savedY=window.scrollY;
+ const active=document.activeElement;
+ const focusId=active instanceof HTMLElement && jobs.contains(active) ? active.id : '';
+ try{
+  const data=await api('/api/v1/analyses?limit=20');
+  const signature=JSON.stringify(data.items);
+  // Avoid rebuilding identical content every polling tick; this preserves focus and scroll naturally.
+  if(signature===lastJobSignature)return;
+  const fragment=document.createDocumentFragment();
+  if(!data.items.length){
+   fragment.append(el('div','暂无任务。上传一段获准使用的视频开始验证。','muted'));
+  }else{
+   for(const j of data.items)fragment.append(await render(j));
+  }
+  jobs.replaceChildren(fragment);
+  lastJobSignature=signature;
+ }catch(e){
+  jobs.replaceChildren(el('div','加载失败：'+e.message,'muted'));
+  lastJobSignature='';
+ }finally{
+  // Replacing a focused review button can make browsers jump to the top.
+  // Restore focus without scrolling, then restore the exact viewport position.
+  requestAnimationFrame(()=>{
+   if(focusId){
+    const replacement=document.getElementById(focusId);
+    if(replacement)replacement.focus({preventScroll:true});
+   }
+   window.scrollTo(savedX,savedY);
+   refreshing=false;
+  });
+ }
+}
 form.addEventListener('submit',async e=>{e.preventDefault();submit.disabled=true;message.textContent='正在上传…';try{const d=await api('/api/v1/analyses',{method:'POST',body:new FormData(form)});message.textContent='任务已创建：'+d.analysis_id;form.reset();await refresh();}catch(err){message.textContent='失败：'+err.message;}finally{submit.disabled=false;}});
-refresh();setInterval(refresh,5000);
+refresh();setInterval(()=>{void refresh();},5000);
 </script></body></html>
