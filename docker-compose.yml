@@ -1,0 +1,15 @@
+services:
+  cockpit-analyzer:
+    build: .
+    container_name: cockpit-benchmark-analyzer
+    ports:
+      - "8010:8010"
+    env_file:
+      - .env
+    environment:
+      DATA_DIR: /app/data
+      FFMPEG_BIN: ffmpeg
+      FFPROBE_BIN: ffprobe
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
