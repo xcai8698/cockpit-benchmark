@@ -35,9 +35,23 @@ def _public_job(job: dict) -> dict:
 
 
 def safe_name(name: str | None) -> str:
-    raw = Path(name or "uploaded-video.mp4").name
-    raw = re.sub(r"[^A-Za-z0-9._-]+", "_", raw).strip("._")
-    return raw[:120] or "uploaded-video.mp4"
+    """Return a safe basename while preserving Unicode letters and the file extension.
+
+    Browsers usually send just the basename, but normalize Windows separators too.
+    Keep extension extraction independent from stem sanitization: stripping Unicode
+    from a Chinese-only stem must never accidentally strip the recognized .mp4 suffix.
+    """
+    raw = (name or "uploaded-video.mp4").replace("\\", "/").split("/")[-1]
+    # Remove control characters, but do not transliterate or delete Chinese characters.
+    raw = "".join(char for char in raw if char.isprintable() and char not in '<>:"|?*')
+    parsed = Path(raw)
+    suffix = parsed.suffix.lower()
+    stem = raw[:-len(parsed.suffix)] if parsed.suffix else raw
+    stem = re.sub(r"[^\\w.-]+", "_", stem, flags=re.UNICODE).strip("._")
+    stem = stem[:100] or "uploaded-video"
+    # Normalize the suffix casing, and only sanitize the stem. The caller performs
+    # the allow-list check on this suffix before writing the uploaded file.
+    return f"{stem}{suffix}"[:120]
 
 
 @app.get("/health")
@@ -182,7 +196,7 @@ def review_analysis(analysis_id: str, request: ReviewRequest):
 @app.get("/api/v1/analyses/{analysis_id}/evidence/{filename}")
 def evidence_file(analysis_id: str, filename: str):
     _validate_analysis_id(analysis_id)
-    if not re.fullmatch(r"frame_\d{3}\.jpg", filename):
+    if not re.fullmatch(r"frame_\\d{3}\\.jpg", filename):
         raise HTTPException(status_code=400, detail="Invalid evidence filename")
     job = get_job(analysis_id)
     if job is None:
