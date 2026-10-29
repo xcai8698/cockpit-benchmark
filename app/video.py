@@ -304,7 +304,7 @@ def build_sampling_plan(
         try:
             scene_candidates = detect_scene_changes(video_path)
             succeeded = True
-        except (VideoProcessingError, OSError, ValueError, subprocess.SubprocessError) as exc:
+        except (VideoProcessingError, OSError, subprocess.SubprocessError) as exc:
             # Scene detection is an enhancement, not a reason to lose the baseline analysis.
             warnings.append(f"Scene detection unavailable; fell back to temporal coverage: {exc}")
 
