@@ -12,7 +12,7 @@ export function assertReportCanBeApproved(report: AnalysisReport): void {
   const incomplete = report.scores.find((item) =>
     item.score === null || !Number.isFinite(item.score) || item.evidence_ids.length === 0 || item.status !== 'scored'
   );
-  if (incomplete) throw new Error(`Cannot approve incomplete criterion: ${incomplete.criterion_id}`);
+  if (incomplete) throw new Error(`Cannot approve incomplete metric: ${incomplete.metric_id}`);
 }
 
 export function isEligibleForRanking(row: {
