@@ -1,0 +1,1 @@
+"""Cockpit Benchmark Analyzer MVP."""
