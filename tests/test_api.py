@@ -19,6 +19,22 @@ def test_upload_rejects_unsupported_extension():
     assert response.status_code == 415
 
 
+def test_safe_name_preserves_chinese_stem_and_normalizes_extension():
+    assert main.safe_name("测试视频.mp4") == "测试视频.mp4"
+    assert main.safe_name("纯中文.MP4") == "纯中文.mp4"
+    assert main.safe_name(r"C:\\fakepath\\座舱体验视频.MOV") == "座舱体验视频.mov"
+
+
+def test_upload_accepts_chinese_filename():
+    response = client.post(
+        "/api/v1/analyses",
+        files={"video": ("中文座舱体验.mp4", b"not-a-real-video", "video/mp4")},
+    )
+    # It may fail downstream video decoding, but filename validation must accept it.
+    assert response.status_code == 202
+    assert response.json()["analysis_id"]
+
+
 def test_rubric_endpoint():
     response = client.get("/api/v1/rubric")
     assert response.status_code == 200
