@@ -42,7 +42,7 @@ Windows PowerShell 激活环境可用：
 - app/static/index.html — 浏览器 MVP。
 - integrations/aihot-module/cockpit-benchmark — AIHOT 集成脚手架与 SQL migration。
 - docs/TECHNICAL_PLAN.md — 当前范围、接口与下一步验证方案。
-- SPRINT0_BASELINE.md、SPRINT1_ACCEPTANCE.md、SPRINT2_ACCEPTANCE.md — 迭代记录。
+- docs/SPRINT0_BASELINE.md、docs/SPRINT1_ACCEPTANCE.md 与 SPRINT2_ACCEPTANCE.md — 迭代记录。
 
 ## 验证状态与边界
 
@@ -57,7 +57,7 @@ Windows PowerShell 激活环境可用：
 ## 相关文档
 
 - [Technical plan](docs/TECHNICAL_PLAN.md)
-- [Sprint 0 baseline](SPRINT0_BASELINE.md)
-- [Sprint 1 acceptance](SPRINT1_ACCEPTANCE.md)
+- [Sprint 0 baseline](docs/SPRINT0_BASELINE.md)
+- [Sprint 1 acceptance](docs/SPRINT1_ACCEPTANCE.md)
 - [Sprint 2 acceptance](SPRINT2_ACCEPTANCE.md)
 - [AIHOT integration scaffold](integrations/aihot-module/cockpit-benchmark/README.md)
