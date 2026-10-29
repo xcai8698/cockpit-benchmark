@@ -196,7 +196,7 @@ def review_analysis(analysis_id: str, request: ReviewRequest):
 @app.get("/api/v1/analyses/{analysis_id}/evidence/{filename}")
 def evidence_file(analysis_id: str, filename: str):
     _validate_analysis_id(analysis_id)
-    if not re.fullmatch(r"frame_\\d{3}\\.jpg", filename):
+    if not re.fullmatch(r"frame_\d{3}\.jpg", filename):
         raise HTTPException(status_code=400, detail="Invalid evidence filename")
     job = get_job(analysis_id)
     if job is None:
