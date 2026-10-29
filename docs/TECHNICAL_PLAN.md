@@ -97,7 +97,7 @@ This is an internal-development MVP, not an internet-facing service. Before shar
 
 ## 8. Next milestones
 
-Sprint 3 — clean verification: fresh checkout, dependency install, full Python tests, basic GitHub Actions CI, and fixes for any packaging/install mismatches.
+Sprint 3 — CI hardening: keep the GitHub Actions Python suite green, add tests for upload boundaries and evidence/report invariants, and fix packaging issues revealed by clean CI runs.
 
 Sprint 4 — VLM quality loop: create a small human-labelled set of authorized cockpit videos; record per-metric human scores, evidence sufficiency, and disagreement; revise rubric only with version bumps.
 
