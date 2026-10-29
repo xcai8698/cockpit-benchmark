@@ -46,7 +46,7 @@ Windows PowerShell 激活环境可用：
 
 ## 验证状态与边界
 
-- 本地源包中的 Python 测试：11 passed。GitHub 远端干净检出尚未执行完整测试。
+- GitHub Actions 的 Python tests 工作流已通过：对 main 提交执行依赖安装与 pytest -q，结果 success。
 - TypeScript/Vitest 测试源已提交，但尚未运行。
 - SQL migration 尚未在 PostgreSQL 中实际应用。
 - AIHOT 代码是集成脚手架，尚未在某个具体 AIHOT checkout 中注册、编译和端到端运行。
