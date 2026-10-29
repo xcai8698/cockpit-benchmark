@@ -1,28 +1,61 @@
 /** Server-side client for the Cockpit Benchmark Analyzer. Never import in browser code. */
 export type AnalysisStatus = {
   analysis_id: string;
-  status: 'queued' | 'processing' | 'completed' | 'failed';
+  status: 'queued' | 'processing' | 'completed' | 'completed_unscored' | 'failed';
   stage?: string;
   error?: string | null;
   review_status?: 'pending' | 'approved' | 'rejected';
 };
 
 export type AnalysisReport = {
+  schema_version: string;
   analysis_id: string;
-  mode: string;
-  status: string;
-  rubric?: { id: string; version: string };
+  created_at: string;
+  mode: 'openai_compatible_vlm' | 'no_model';
+  model_name: string | null;
+  review_status: 'pending' | 'approved' | 'rejected';
+  reviewer: string | null;
+  reviewed_at: string | null;
+  review_notes: string | null;
+  rubric_id: string;
+  rubric_version: string;
+  video_metadata: {
+    original_filename: string;
+    vehicle_make?: string | null;
+    vehicle_model?: string | null;
+    model_year?: string | null;
+    software_version?: string | null;
+    scenario?: string | null;
+    source_url?: string | null;
+  };
+  duration_sec: number;
+  sampled_frames: Array<{
+    evidence_id: string;
+    timestamp_sec: number;
+    timestamp_semantics: 'ffmpeg_seek_target';
+    file_name: string;
+    sha256: string;
+    mime_type: 'image/jpeg';
+    width: number | null;
+    height: number | null;
+    source_video: string;
+  }>;
+  observations: Array<{
+    evidence_id: string;
+    observation: string;
+    confidence: number | null;
+  }>;
   scores: Array<{
-    criterion_id: string;
-    criterion_name: string;
+    metric_id: string;
     score: number | null;
-    weight: number;
+    status: 'scored' | 'evidence_insufficient';
+    rationale: string;
     evidence_ids: string[];
-    rationale?: string;
-    status?: 'scored' | 'insufficient_evidence' | 'error';
+    weight: number;
   }>;
   overall_score_100: number | null;
-  review_status?: 'pending' | 'approved' | 'rejected';
+  warnings: string[];
+  provenance_note: string;
 };
 
 export class AnalyzerClient {
