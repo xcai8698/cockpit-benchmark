@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>座舱竞品 Benchmark</title>
+<style>
+:root{color-scheme:light;--ink:#17202a;--muted:#667085;--line:#d9e0e7;--blue:#1769aa;--bg:#f4f7fa}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{background:#fff;border-bottom:1px solid var(--line);padding:22px max(20px,calc((100% - 1080px)/2))}
+main{max-width:1080px;margin:24px auto;padding:0 18px 36px}h1{font-size:23px;margin:0 0 5px}h2{font-size:18px;margin:0 0 14px}.muted{color:var(--muted)}
+.panel,.job{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+label{display:block;font-size:13px;color:var(--muted)}input{width:100%;margin-top:5px;padding:10px;border:1px solid #cbd4de;border-radius:8px;font:inherit}.full{grid-column:1/-1}
+button{border:0;border-radius:8px;padding:10px 14px;background:var(--blue);color:white;font:inherit;cursor:pointer}button:disabled{opacity:.55}.secondary{background:#596579}
+.note{background:#fff7e5;border:1px solid #f1d48d;border-radius:8px;padding:10px 12px;margin-top:12px}.status{display:inline-block;font-size:12px;border-radius:999px;background:#e9eef4;padding:3px 9px;margin-left:8px}
+.scores{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:12px}.score{border:1px solid var(--line);border-radius:9px;padding:10px}.score strong{display:block;font-size:18px}.frames{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.frame{width:175px;font-size:12px;color:var(--muted)}.frame img{width:100%;aspect-ratio:16/9;object-fit:contain;background:#111;border-radius:7px;display:block}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f7f9fb;padding:12px;border-radius:8px;max-height:260px;overflow:auto}
+@media(max-width:700px){.grid,.scores{grid-template-columns:1fr}header{padding:18px}}
+</style></head>
+<body><header><h1>座舱竞品 Benchmark</h1><div class="muted">视频上传 → 可追溯证据帧 → 结构化报告 → 人工复核。未配置 VLM 时只抽帧，不生成分数。</div></header>
+<main><section class="panel"><h2>新建分析任务</h2>
+<form id="form" class="grid">
+<label class="full">视频文件（MP4 / MOV / MKV / WEBM / AVI）<input name="video" type="file" accept="video/*" required></label>
+<label>品牌<input name="vehicle_make" placeholder="可选"></label><label>车型<input name="vehicle_model" placeholder="可选"></label>
+<label>年款<input name="model_year" placeholder="例如 2026"></label><label>软件版本<input name="software_version" placeholder="可选"></label>
+<label class="full">体验场景<input name="scenario" placeholder="例如：导航目的地搜索、空调控制"></label>
+<label class="full">原始视频链接（仅记录，不自动下载）<input name="source_url" type="url" placeholder="https://…"></label>
+<div class="full"><button id="submit" type="submit">上传并分析</button> <span id="message" class="muted"></span></div>
+</form><div class="note">正式榜单前必须人工复核。评分仅针对视频中可观察到的内容，不推断未展示的功能或内部性能。请只上传获准使用的视频。</div>
+</section><section class="panel"><h2>最近任务</h2><div id="jobs" class="muted">正在加载…</div></section></main>
+<script>
+const form=document.querySelector('#form'),submit=document.querySelector('#submit'),message=document.querySelector('#message'),jobs=document.querySelector('#jobs');
+const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text);if(cls)n.className=cls;return n;};
+async function api(url,options){const r=await fetch(url,options);let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.detail||r.statusText);return d;}
+async function review(id,decision){const reviewer=prompt('审核人标识（姓名或工号）：');if(!reviewer||!reviewer.trim())return;const notes=prompt(decision==='approved'?'审核备注（可留空）：':'驳回原因：')||'';try{await api('/api/v1/analyses/'+id+'/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reviewer:reviewer.trim(),decision,notes})});message.textContent='审核状态已更新';await refresh();}catch(e){message.textContent='审核失败：'+e.message;}}
+async function render(job){const box=el('article',undefined,'job'),head=el('div');head.append(el('strong',job.video_metadata?.original_filename||job.analysis_id),el('span',job.status+(job.stage?' · '+job.stage:''),'status'));box.append(head);box.append(el('div',[job.video_metadata?.vehicle_make,job.video_metadata?.vehicle_model,job.video_metadata?.model_year,job.video_metadata?.scenario].filter(Boolean).join(' · ')||'未填写车型/场景','muted'));
+if(job.error)box.append(el('pre',job.error));
+if(['completed','completed_unscored'].includes(job.status)){try{const report=await api('/api/v1/analyses/'+job.analysis_id+'/report');box.append(el('div','Rubric '+report.rubric_id+' v'+report.rubric_version+' · '+report.mode+' · 复核：'+report.review_status,'muted'));
+const scores=el('div',undefined,'scores');for(const s of report.scores){const c=el('div',undefined,'score');c.append(el('div',s.metric_id),el('strong',s.score==null?'证据不足 / 未评分':s.score+' / 5'),el('div',s.rationale,'muted'),el('div','证据：'+(s.evidence_ids.join(', ')||'无'),'muted'));scores.append(c);}box.append(scores);
+box.append(el('div','证据帧（'+report.sampled_frames.length+'）'));const frames=el('div',undefined,'frames');for(const f of report.sampled_frames){const c=el('div',undefined,'frame'),img=el('img');img.loading='lazy';img.src='/api/v1/analyses/'+job.analysis_id+'/evidence/'+f.file_name;img.alt=f.evidence_id;c.append(img,el('div',f.evidence_id+' · 目标时间 '+Number(f.timestamp_sec).toFixed(3)+'s'));frames.append(c);}box.append(frames);
+if(report.warnings?.length)box.append(el('pre','提示：\n'+report.warnings.join('\n')));
+if(report.review_status==='pending'){const controls=el('div');controls.style.display='flex';controls.style.gap='8px';controls.style.marginTop='12px';const reject=el('button','驳回结果','secondary');reject.onclick=()=>review(job.analysis_id,'rejected');controls.append(reject);
+if(report.mode!=='no_model'&&report.overall_score_100!=null&&report.scores.length&&report.scores.every(s=>s.score!=null&&s.evidence_ids.length)){const approve=el('button','审核通过');approve.onclick=()=>review(job.analysis_id,'approved');controls.append(approve);}box.append(controls);}
+else box.append(el('div','审核状态：'+report.review_status+' · 审核人：'+(report.reviewer||'未记录')+' · '+(report.reviewed_at||''),'muted'));
+const link=el('a','打开 JSON 报告');link.href='/api/v1/analyses/'+job.analysis_id+'/report';link.target='_blank';link.rel='noreferrer';box.append(link);
+}catch(e){box.append(el('div','报告读取失败：'+e.message,'muted'));}}
+return box;}
+async function refresh(){try{const data=await api('/api/v1/analyses?limit=20');jobs.replaceChildren();if(!data.items.length){jobs.textContent='暂无任务。上传一段获准使用的视频开始验证。';return;}for(const j of data.items)jobs.append(await render(j));}catch(e){jobs.textContent='加载失败：'+e.message;}}
+form.addEventListener('submit',async e=>{e.preventDefault();submit.disabled=true;message.textContent='正在上传…';try{const d=await api('/api/v1/analyses',{method:'POST',body:new FormData(form)});message.textContent='任务已创建：'+d.analysis_id;form.reset();await refresh();}catch(err){message.textContent='失败：'+err.message;}finally{submit.disabled=false;}});
+refresh();setInterval(refresh,5000);
+</script></body></html>
