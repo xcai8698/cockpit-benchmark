@@ -88,3 +88,43 @@ def test_status_response_does_not_leak_filesystem_path():
     response = client.get(f"/api/v1/analyses/{analysis_id}")
     assert response.status_code == 200
     assert "video_path" not in response.json()
+
+
+
+def test_evidence_endpoint_serves_frame_jpeg():
+    from uuid import uuid4
+    from app.storage import create_job, job_dir
+
+    analysis_id = uuid4().hex[:16]
+    create_job({
+        "analysis_id": analysis_id,
+        "status": "completed_unscored",
+        "stage": "awaiting_human_review",
+        "created_at": "2026-10-29T00:00:00+00:00",
+        "video_metadata": {"original_filename": "中文座舱.mp4"},
+    })
+    frames = job_dir(analysis_id) / "frames"
+    frames.mkdir(parents=True, exist_ok=True)
+    payload = b"fake-jpeg-bytes-for-route-test"
+    (frames / "frame_001.jpg").write_bytes(payload)
+
+    response = client.get(f"/api/v1/analyses/{analysis_id}/evidence/frame_001.jpg")
+    assert response.status_code == 200
+    assert response.content == payload
+    assert response.headers["content-type"].startswith("image/jpeg")
+
+
+def test_evidence_endpoint_rejects_unexpected_filename():
+    from uuid import uuid4
+    from app.storage import create_job
+
+    analysis_id = uuid4().hex[:16]
+    create_job({
+        "analysis_id": analysis_id,
+        "status": "completed_unscored",
+        "stage": "awaiting_human_review",
+        "created_at": "2026-10-29T00:00:00+00:00",
+        "video_metadata": {"original_filename": "test.mp4"},
+    })
+    response = client.get(f"/api/v1/analyses/{analysis_id}/evidence/secret.txt")
+    assert response.status_code == 400
