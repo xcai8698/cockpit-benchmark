@@ -7,10 +7,10 @@ from typing import Any
 from pydantic import ValidationError
 
 from .config import settings
-from .models import AnalysisResult, MetricScore, Observation, VideoMetadata
+from .models import AnalysisResult, MetricScore, Observation, SamplingManifest, VideoMetadata
 from .providers.openai_compatible import ProviderError, analyze_frames
 from .storage import get_job, result_file, update_job, utc_now, write_json_atomic
-from .video import extract_frames, probe_video, sample_timestamps
+from .video import build_sampling_plan, extract_frames, probe_video
 
 RUBRIC_PATH = Path(__file__).resolve().parents[1] / "config" / "rubric.v1.json"
 
@@ -134,10 +134,23 @@ def run_analysis(job_id: str) -> None:
         if not video_path.exists():
             raise FileNotFoundError("Uploaded video file no longer exists")
         probe = probe_video(video_path)
-        timestamps = sample_timestamps(
-            float(probe["duration_sec"]), settings.sample_interval_sec, settings.max_frames
+        sampling_options = job.get("sampling_options") or {}
+        sampling_plan = build_sampling_plan(
+            video_path,
+            float(probe["duration_sec"]),
+            settings.sample_interval_sec,
+            settings.max_frames,
+            policy_id=settings.sampling_policy,
+            supplemental_timestamps=sampling_options.get("supplemental_timestamps_sec", []),
         )
-        update_job(job_id, stage="extracting_frames", duration_sec=probe["duration_sec"])
+        timestamps = sampling_plan.timestamps
+        update_job(
+            job_id,
+            stage="extracting_frames",
+            duration_sec=probe["duration_sec"],
+            sampling_policy_id=sampling_plan.manifest["policy_id"],
+            sampling_frame_count=len(timestamps),
+        )
         evidence_models = extract_frames(video_path, job_id, timestamps)
         frames_dir = settings.jobs_dir / job_id / "frames"
         frames_for_model = [
@@ -150,7 +163,7 @@ def run_analysis(job_id: str) -> None:
         ]
         rubric = load_rubric()
         metadata = VideoMetadata(**job["video_metadata"])
-        warnings: list[str] = []
+        warnings: list[str] = list(sampling_plan.warnings)
 
         if settings.provider_enabled:
             update_job(job_id, stage="vlm_analysis")
@@ -195,6 +208,7 @@ def run_analysis(job_id: str) -> None:
             video_metadata=metadata,
             duration_sec=float(probe["duration_sec"]),
             sampled_frames=evidence_models,
+            sampling_manifest=SamplingManifest(**sampling_plan.manifest),
             observations=observations,
             scores=scores,
             overall_score_100=overall,
