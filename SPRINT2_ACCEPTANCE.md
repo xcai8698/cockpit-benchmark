@@ -14,7 +14,7 @@
 
 ## Verification status
 
-The source archive used to assemble this repository recorded a prior Python test run of 11 passed. The committed tree has not yet been checked out and re-run as a fresh clean build in this step. The TypeScript/Vitest tests have not been run here; the SQL migration has not been applied to PostgreSQL; and the module has not been compiled against an actual AIHOT checkout.
+GitHub Actions workflow run #1 passed on commit 344ab76778db7eabf37c032d5b31085640ddc2de. The workflow checked out the committed repository, installed Python dependencies, and executed pytest -q successfully. The TypeScript/Vitest tests have not been run; the SQL migration has not been applied to PostgreSQL; and the module has not been compiled against an actual AIHOT checkout.
 
 ## Important limitations
 
@@ -26,7 +26,7 @@ The source archive used to assemble this repository recorded a prior Python test
 
 ## Next verification gates
 
-1. Run the full Python suite from a clean checkout and configure GitHub Actions CI.
+1. Keep the Python CI green and expand regression coverage as the MVP evolves.
 2. Configure an approved VLM endpoint and manually validate multiple cockpit scenes against human ratings.
 3. Integrate the scaffold into the actual AIHOT checkout, then run its typecheck, tests, and smoke tests.
 4. Apply the SQL migration to a disposable PostgreSQL database and verify migration/recovery procedures.
