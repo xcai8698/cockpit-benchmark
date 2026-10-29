@@ -255,12 +255,12 @@ def plan_sampling(
     selected.extend(selected_scenes)
     selected = sorted(set(selected))
 
-    if not valid_manual and not selected_scenes and not valid_scenes:
+    if not valid_manual and not selected_scenes and not scene_candidates:
         timestamps = uniform
     else:
         # Include the full fixed-interval grid and uniform anchors as filler candidates.
         # The farthest-point fill naturally prioritizes full-video temporal coverage.
-        candidates = sorted(set(grid + uniform + valid_scenes))
+        candidates = sorted(set(grid + uniform))
         timestamps = _fill_spread(selected, candidates, max_frames)
         if not timestamps:
             timestamps = [0.0]
