@@ -115,3 +115,37 @@ def test_transcription_multipart_contains_model_and_timestamp_request(tmp_path, 
     assert b'name="language"' in body
     assert b"audio_chunk_001.wav" in body
     assert b"RIFF-test-audio" in body
+
+
+def test_audio_manifest_accepts_timestamped_sound_event_evidence():
+    manifest = AudioManifest(
+        available=True,
+        transcription_status="not_configured",
+        event_analysis_status="completed",
+        event_analysis_model="gpt-audio",
+        event_analysis_chunks=["AUD001"],
+        chunks=[{
+            "chunk_id": "AUD001",
+            "file_name": "audio_chunk_001.wav",
+            "sha256": "abc123",
+            "start_sec": 0,
+            "end_sec": 60,
+            "duration_sec": 60,
+            "sample_rate_hz": 16000,
+            "channels": 1,
+            "timestamp_semantics": "source_video_timeline",
+        }],
+        audio_events=[{
+            "audio_event_id": "AE00001",
+            "event_type": "alert_tone",
+            "start_sec": 12.1,
+            "end_sec": 12.8,
+            "description": "Short warning chime",
+            "confidence": 0.85,
+            "source_chunk_id": "AUD001",
+            "timestamp_precision": "model_estimate",
+        }],
+    )
+
+    assert manifest.event_analysis_status == "completed"
+    assert manifest.audio_events[0].source_chunk_id == "AUD001"
