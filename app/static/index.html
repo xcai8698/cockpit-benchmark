@@ -13,7 +13,7 @@ button{border:0;border-radius:8px;padding:10px 14px;background:var(--blue);color
 .scores{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:12px}.score{border:1px solid var(--line);border-radius:9px;padding:10px}.score strong{display:block;font-size:18px}.frames{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.frame{width:175px;font-size:12px;color:var(--muted)}.frame img{width:100%;aspect-ratio:16/9;object-fit:contain;background:#111;border-radius:7px;display:block}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f7f9fb;padding:12px;border-radius:8px;max-height:260px;overflow:auto}
 @media(max-width:700px){.grid,.scores{grid-template-columns:1fr}header{padding:18px}}
 </style></head>
-<body><header><h1>座舱竞品 Benchmark</h1><div class="muted">视频上传 → 可追溯证据帧 → 结构化报告 → 人工复核。未配置 VLM 时只抽帧，不生成分数。</div></header>
+<body><header><h1>座舱竞品 Benchmark</h1><div class="muted">长视频上传 → 视觉证据 + 音轨 / 转写 → 统一时间轴 → 结构化报告 → 人工复核。当前自动评分仍为视觉单模态。</div></header>
 <main><section class="panel"><h2>新建分析任务</h2>
 <form id="form" class="grid">
 <label class="full">视频文件（MP4 / MOV / MKV / WEBM / AVI）<input name="video" type="file" accept="video/*" required></label>
@@ -21,7 +21,7 @@ button{border:0;border-radius:8px;padding:10px 14px;background:var(--blue);color
 <label>年款<input name="model_year" placeholder="例如 2026"></label><label>软件版本<input name="software_version" placeholder="可选"></label>
 <label class="full">体验场景<input name="scenario" placeholder="例如：导航目的地搜索、空调控制"></label>
 <label class="full">补充关键证据时间点（秒，可选）<input name="supplemental_timestamps_sec" placeholder="例如：12.5, 18, 42.2"><span class="muted">用逗号或分号分隔。适合补充转向灯、弹窗、状态变化等短暂片段；不会改变全局抽帧上限。</span></label>
-<label class="full">原始视频链接（仅记录，不自动下载）<input name="source_url" type="url" placeholder="https://…"></label>
+<label class="full">原始视频来源页（仅记录，不自动下载）<input name="source_url" type="url" placeholder="例如 https://www.xchuxing.com/video/9888；仍需上传本地视频文件"></label>
 <div class="full"><button id="submit" type="submit">上传并分析</button> <span id="message" class="muted"></span></div>
 </form><div class="note">正式榜单前必须人工复核。评分仅针对视频中可观察到的内容，不推断未展示的功能或内部性能。请只上传获准使用的视频。</div>
 </section><section class="panel"><h2>最近任务</h2><div id="jobs" class="muted">正在加载…</div></section></main>
