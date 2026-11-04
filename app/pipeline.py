@@ -125,6 +125,60 @@ def _normalise_model_output(
     return observations, scores, warnings
 
 
+def _build_av_timeline(
+    frames: list[Any], audio_manifest: dict[str, Any]
+) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    for frame in frames:
+        events.append({
+            "event_type": "visual_frame",
+            "modality": "visual",
+            "start_sec": frame.timestamp_sec,
+            "end_sec": frame.timestamp_sec,
+            "description": f"Visual evidence frame {frame.evidence_id}",
+            "evidence_refs": [frame.evidence_id],
+            "timestamp_precision": "seek_target",
+        })
+
+    chunks = audio_manifest.get("chunks", [])
+    for segment in audio_manifest.get("transcript_segments", []):
+        events.append({
+            "event_type": "speech_transcript",
+            "modality": "audio",
+            "start_sec": segment["start_sec"],
+            "end_sec": segment["end_sec"],
+            "description": segment["text"],
+            "evidence_refs": [segment["transcript_id"], segment["source_chunk_id"]],
+            "timestamp_precision": (
+                "asr_segment" if segment.get("timestamp_precision") == "asr_segment"
+                else "chunk_window"
+            ),
+        })
+
+    metrics = audio_manifest.get("signal_metrics", {})
+    for silence in metrics.get("silence_intervals", []):
+        start = float(silence["start_sec"])
+        end = float(silence["end_sec"])
+        chunk_refs = [
+            chunk["chunk_id"] for chunk in chunks
+            if float(chunk["start_sec"]) <= start < float(chunk["end_sec"])
+        ]
+        events.append({
+            "event_type": "audio_silence",
+            "modality": "audio",
+            "start_sec": start,
+            "end_sec": end,
+            "description": f"Near-silence detected ({float(silence['duration_sec']):.2f}s, threshold -50 dBFS)",
+            "evidence_refs": chunk_refs,
+            "timestamp_precision": "signal_interval",
+        })
+
+    events.sort(key=lambda item: (item["start_sec"], item["end_sec"], item["modality"]))
+    for index, event in enumerate(events, start=1):
+        event["event_id"] = f"EV{index:05d}"
+    return events
+
+
 def run_analysis(job_id: str) -> None:
     job = get_job(job_id)
     if job is None:
@@ -167,7 +221,7 @@ def run_analysis(job_id: str) -> None:
                 audio_stream=probe.get("audio_stream"),
                 duration_sec=float(probe["duration_sec"]),
             )
-        except AudioProcessingError as exc:
+        except Exception as exc:
             # A broken or unsupported audio track must not discard otherwise valid visual evidence.
             audio_manifest_data = {
                 "available": bool(probe.get("audio_stream")),
@@ -175,7 +229,7 @@ def run_analysis(job_id: str) -> None:
                 "chunks": [],
                 "transcript_segments": [],
             }
-            audio_warnings = [f"Audio processing failed; visual analysis continues: {exc}"]
+            audio_warnings = [f"Audio processing failed; visual analysis continues: {type(exc).__name__}: {exc}"]
         update_job(
             job_id,
             audio_status=audio_manifest_data.get("transcription_status", "not_configured"),
@@ -248,6 +302,7 @@ def run_analysis(job_id: str) -> None:
             },
             sampled_frames=evidence_models,
             audio_manifest=AudioManifest(**audio_manifest_data),
+            av_timeline=_build_av_timeline(evidence_models, audio_manifest_data),
             sampling_manifest=SamplingManifest(**sampling_plan.manifest),
             observations=observations,
             scores=scores,
