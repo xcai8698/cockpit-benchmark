@@ -316,9 +316,12 @@ def prepare_audio(
                     chunk_duration_sec=float(chunk["duration_sec"]),
                 )
                 detected_events.extend(events)
-            except AudioEventAnalysisError as exc:
+            except Exception as exc:
+                # Optional sound-event inference must never discard extracted audio or ASR evidence.
                 failed_event_chunks.append(chunk["chunk_id"])
-                warnings.append(f"Audio event analysis failed for {chunk['chunk_id']}: {exc}")
+                warnings.append(
+                    f"Audio event analysis failed for {chunk['chunk_id']}: {type(exc).__name__}: {exc}"
+                )
 
         # One-second chunk overlap can produce the same event twice near boundaries.
         deduped_events: list[dict[str, Any]] = []
