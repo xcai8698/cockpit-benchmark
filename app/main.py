@@ -16,7 +16,7 @@ from .pipeline import run_analysis
 from .storage import create_job, get_job, job_dir, list_jobs, read_json, result_file, update_job, utc_now, write_json_atomic
 
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi"}
-app = FastAPI(title=settings.app_name, version="0.1.0", description="Evidence-linked cockpit video analysis MVP")
+app = FastAPI(title=settings.app_name, version="0.1.0", description="Evidence-linked audiovisual cockpit analysis MVP")
 
 
 class ReviewRequest(BaseModel):
@@ -88,6 +88,9 @@ def health():
         "mode": "openai_compatible_vlm" if settings.provider_enabled else "no_model",
         "ffmpeg_available": __import__("shutil").which(settings.ffmpeg_bin) is not None,
         "ffprobe_available": __import__("shutil").which(settings.ffprobe_bin) is not None,
+        "max_upload_mb": settings.max_upload_mb,
+        "max_video_duration_sec": settings.max_video_duration_sec,
+        "audio_transcription_enabled": settings.audio_transcription_enabled,
     }
 
 
