@@ -198,76 +198,157 @@ def prepare_audio(
         warnings.append(
             f"Audio duration ({actual_duration:.3f}s) differs from container duration ({duration_sec:.3f}s) by more than 1s."
         )
-    if not settings.audio_transcription_enabled:
+
+    if settings.audio_transcription_enabled:
+        from .providers.openai_transcription import TranscriptionError, transcribe_audio_file
+
+        transcript_segments: list[dict[str, Any]] = []
+        failed_chunks: list[str] = []
+        for chunk in chunks:
+            try:
+                response = transcribe_audio_file(
+                    audio_dir / chunk["file_name"],
+                    language=settings.audio_transcription_language or None,
+                )
+            except TranscriptionError as exc:
+                failed_chunks.append(chunk["chunk_id"])
+                warnings.append(f"ASR failed for {chunk['chunk_id']}: {exc}")
+                continue
+
+            response_segments = response.get("segments")
+            if isinstance(response_segments, list) and response_segments:
+                for item in response_segments:
+                    if not isinstance(item, dict) or not isinstance(item.get("text"), str):
+                        continue
+                    try:
+                        local_start = float(item.get("start", 0))
+                        local_end = float(item.get("end", local_start))
+                    except (TypeError, ValueError):
+                        continue
+                    if not (0 <= local_start <= local_end <= float(chunk["duration_sec"]) + 0.5):
+                        continue
+                    transcript_segments.append({
+                        "transcript_id": f"T{len(transcript_segments) + 1:05d}",
+                        "start_sec": round(chunk["start_sec"] + local_start, 3),
+                        "end_sec": round(min(chunk["end_sec"], chunk["start_sec"] + local_end), 3),
+                        "text": item["text"].strip()[:2000],
+                        "source_chunk_id": chunk["chunk_id"],
+                        "timestamp_precision": "asr_segment",
+                    })
+            elif isinstance(response.get("text"), str) and response["text"].strip():
+                transcript_segments.append({
+                    "transcript_id": f"T{len(transcript_segments) + 1:05d}",
+                    "start_sec": chunk["start_sec"],
+                    "end_sec": chunk["end_sec"],
+                    "text": response["text"].strip()[:4000],
+                    "source_chunk_id": chunk["chunk_id"],
+                    "timestamp_precision": "chunk_window",
+                })
+
+        # Adjacent chunks overlap by design. Drop near-identical duplicate text in overlapping windows.
+        deduped: list[dict[str, Any]] = []
+        for segment in sorted(transcript_segments, key=lambda x: (x["start_sec"], x["end_sec"])):
+            normal_text = re.sub(r"\s+", "", segment["text"])
+            duplicate = any(
+                re.sub(r"\s+", "", prior["text"]) == normal_text
+                and segment["start_sec"] <= prior["end_sec"]
+                for prior in deduped[-8:]
+            )
+            if normal_text and not duplicate:
+                segment["transcript_id"] = f"T{len(deduped) + 1:05d}"
+                deduped.append(segment)
+
+        manifest["transcript_segments"] = deduped
+        manifest["transcription_model"] = settings.audio_transcription_model
+        manifest["transcription_status"] = (
+            "failed" if failed_chunks and not deduped
+            else "partial" if failed_chunks
+            else "completed"
+        )
+        manifest["failed_chunk_ids"] = failed_chunks
+        if failed_chunks:
+            warnings.append(f"ASR did not complete for {len(failed_chunks)} audio chunk(s).")
+    else:
         warnings.append(
             "Audio was extracted and segmented, but ASR is not configured. Set AUDIO_TRANSCRIPTION_BASE_URL and AUDIO_TRANSCRIPTION_MODEL to enable timestamped transcription."
         )
-        return manifest, warnings
 
-    from .providers.openai_transcription import TranscriptionError, transcribe_audio_file
+    # Sound-event understanding is a separate optional model pass from ASR.
+    manifest["event_analysis_status"] = "not_configured"
+    manifest["event_analysis_model"] = None
+    manifest["event_analysis_chunks"] = []
+    manifest["skipped_event_chunk_ids"] = []
+    manifest["failed_event_chunk_ids"] = []
+    manifest["audio_events"] = []
 
-    transcript_segments: list[dict[str, Any]] = []
-    failed_chunks: list[str] = []
-    for chunk in chunks:
-        try:
-            response = transcribe_audio_file(
-                audio_dir / chunk["file_name"],
-                language=settings.audio_transcription_language or None,
+    if getattr(settings, "audio_event_analysis_enabled", False) and chunks:
+        from .providers.openai_audio_events import AudioEventAnalysisError, analyze_audio_chunk
+
+        max_chunks = int(getattr(settings, "audio_event_max_chunks", 40))
+        if max_chunks <= 0 or len(chunks) <= max_chunks:
+            selected_chunks = chunks
+        else:
+            indexes = sorted({
+                round(index * (len(chunks) - 1) / (max_chunks - 1))
+                for index in range(max_chunks)
+            }) if max_chunks > 1 else [0]
+            selected_chunks = [chunks[index] for index in indexes]
+
+        selected_ids = {chunk["chunk_id"] for chunk in selected_chunks}
+        manifest["event_analysis_chunks"] = [chunk["chunk_id"] for chunk in selected_chunks]
+        manifest["skipped_event_chunk_ids"] = [
+            chunk["chunk_id"] for chunk in chunks if chunk["chunk_id"] not in selected_ids
+        ]
+        manifest["event_analysis_model"] = settings.audio_event_model
+
+        detected_events: list[dict[str, Any]] = []
+        failed_event_chunks: list[str] = []
+        for chunk in selected_chunks:
+            try:
+                events = analyze_audio_chunk(
+                    audio_dir / chunk["file_name"],
+                    base_url=settings.audio_event_base_url,
+                    api_key=settings.audio_event_api_key,
+                    model=settings.audio_event_model,
+                    timeout_sec=settings.audio_event_timeout_sec,
+                    chunk_id=chunk["chunk_id"],
+                    chunk_start_sec=float(chunk["start_sec"]),
+                    chunk_duration_sec=float(chunk["duration_sec"]),
+                )
+                detected_events.extend(events)
+            except AudioEventAnalysisError as exc:
+                failed_event_chunks.append(chunk["chunk_id"])
+                warnings.append(f"Audio event analysis failed for {chunk['chunk_id']}: {exc}")
+
+        # One-second chunk overlap can produce the same event twice near boundaries.
+        deduped_events: list[dict[str, Any]] = []
+        for event in sorted(detected_events, key=lambda x: (x["start_sec"], x["end_sec"])):
+            duplicate = any(
+                prior["event_type"] == event["event_type"]
+                and re.sub(r"\s+", "", prior["description"]).casefold()
+                == re.sub(r"\s+", "", event["description"]).casefold()
+                and abs(prior["start_sec"] - event["start_sec"])
+                <= float(settings.audio_chunk_overlap_sec) + 0.5
+                for prior in deduped_events[-12:]
             )
-        except TranscriptionError as exc:
-            failed_chunks.append(chunk["chunk_id"])
-            warnings.append(f"ASR failed for {chunk['chunk_id']}: {exc}")
-            continue
+            if not duplicate:
+                event["audio_event_id"] = f"AE{len(deduped_events) + 1:05d}"
+                deduped_events.append(event)
 
-        response_segments = response.get("segments")
-        if isinstance(response_segments, list) and response_segments:
-            for item in response_segments:
-                if not isinstance(item, dict) or not isinstance(item.get("text"), str):
-                    continue
-                try:
-                    local_start = max(0.0, float(item.get("start", 0)))
-                    local_end = max(local_start, float(item.get("end", local_start)))
-                except (TypeError, ValueError):
-                    continue
-                transcript_segments.append({
-                    "transcript_id": f"T{len(transcript_segments) + 1:05d}",
-                    "start_sec": round(chunk["start_sec"] + local_start, 3),
-                    "end_sec": round(min(chunk["end_sec"], chunk["start_sec"] + local_end), 3),
-                    "text": item["text"].strip()[:2000],
-                    "source_chunk_id": chunk["chunk_id"],
-                    "timestamp_precision": "asr_segment",
-                })
-        elif isinstance(response.get("text"), str) and response["text"].strip():
-            transcript_segments.append({
-                "transcript_id": f"T{len(transcript_segments) + 1:05d}",
-                "start_sec": chunk["start_sec"],
-                "end_sec": chunk["end_sec"],
-                "text": response["text"].strip()[:4000],
-                "source_chunk_id": chunk["chunk_id"],
-                "timestamp_precision": "chunk_window",
-            })
-
-    # Adjacent chunks overlap by design. Drop near-identical duplicate text in overlapping time windows.
-    deduped: list[dict[str, Any]] = []
-    for segment in sorted(transcript_segments, key=lambda x: (x["start_sec"], x["end_sec"])):
-        normal_text = re.sub(r"\s+", "", segment["text"])
-        duplicate = any(
-            re.sub(r"\s+", "", prior["text"]) == normal_text
-            and segment["start_sec"] <= prior["end_sec"]
-            for prior in deduped[-8:]
+        manifest["audio_events"] = deduped_events
+        manifest["failed_event_chunk_ids"] = failed_event_chunks
+        manifest["event_analysis_status"] = (
+            "failed" if failed_event_chunks and not deduped_events
+            else "partial" if failed_event_chunks or manifest["skipped_event_chunk_ids"]
+            else "completed"
         )
-        if normal_text and not duplicate:
-            segment["transcript_id"] = f"T{len(deduped) + 1:05d}"
-            deduped.append(segment)
+        if manifest["skipped_event_chunk_ids"]:
+            warnings.append(
+                f"Audio event analysis budget skipped {len(manifest['skipped_event_chunk_ids'])} chunk(s); increase AUDIO_EVENT_MAX_CHUNKS to cover more audio."
+            )
+        if failed_event_chunks:
+            warnings.append(
+                f"Audio event analysis did not complete for {len(failed_event_chunks)} audio chunk(s)."
+            )
 
-    manifest["transcript_segments"] = deduped
-    manifest["transcription_model"] = settings.audio_transcription_model
-    manifest["transcription_status"] = (
-        "failed" if failed_chunks and not deduped
-        else "partial" if failed_chunks
-        else "completed"
-    )
-    manifest["failed_chunk_ids"] = failed_chunks
-    if failed_chunks:
-        warnings.append(f"ASR did not complete for {len(failed_chunks)} audio chunk(s).")
     return manifest, warnings
