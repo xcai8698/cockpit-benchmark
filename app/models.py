@@ -82,6 +82,9 @@ class AudioManifest(BaseModel):
     source_codec: str | None = None
     source_sample_rate_hz: int | None = None
     source_channels: int | None = None
+    source_audio_file_name: str | None = None
+    source_audio_sha256: str | None = None
+    source_audio_size_bytes: int | None = None
     analysis_sample_rate_hz: int | None = None
     analysis_channels: int | None = None
     analysis_format: str | None = None
