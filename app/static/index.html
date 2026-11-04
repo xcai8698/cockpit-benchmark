@@ -44,7 +44,7 @@ if(report.sampling_manifest){
 }
 if(report.audio_manifest){
  const am=report.audio_manifest;
- box.append(el('div','音频证据：'+(am.available?'已提取':'未发现音轨')+' · ASR：'+am.transcription_status+' · 音频分段：'+(am.chunks?.length||0),'muted'));
+ box.append(el('div','音频证据：'+(am.available?'已提取':'未发现音轨')+' · ASR：'+am.transcription_status+' · 声音事件：'+(am.event_analysis_status||'not_configured')+'（'+(am.audio_events?.length||0)+'） · 音频分段：'+(am.chunks?.length||0),'muted'));
  if(am.signal_metrics){
   const metrics=am.signal_metrics;
   const summary=[
