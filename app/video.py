@@ -44,7 +44,7 @@ def probe_video(video_path: Path) -> dict[str, Any]:
     if not shutil.which(settings.ffprobe_bin):
         raise VideoProcessingError(f"ffprobe executable not found: {settings.ffprobe_bin}")
     cmd = [
-        settings.ffprobe_bin, "-v", "error", "-show_streams",
+        settings.ffprobe_bin, "-v", "error", "-show_format", "-show_streams",
         "-show_entries",
         "format=duration,format_name,size,bit_rate:stream=index,codec_type,codec_name,width,height,avg_frame_rate,sample_rate,channels,channel_layout,bit_rate",
         "-of", "json", str(video_path),
