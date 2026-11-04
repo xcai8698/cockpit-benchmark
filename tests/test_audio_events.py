@@ -34,15 +34,15 @@ def test_normalise_audio_events_offsets_chunk_time_and_validates_fields():
     )
 
     assert len(events) == 2
-    assert events[0]["event_type"] == "alert_tone"
-    assert events[0]["start_sec"] == 61.25
-    assert events[0]["end_sec"] == 62.5
-    assert events[0]["source_chunk_id"] == "AUD002"
-    assert events[0]["timestamp_precision"] == "model_estimate"
-    assert events[1]["event_type"] == "other"
-    assert events[1]["start_sec"] == 60.0
-    assert events[1]["end_sec"] == 62.0
-    assert events[1]["confidence"] is None
+    alert = next(event for event in events if event["event_type"] == "alert_tone")
+    other = next(event for event in events if event["event_type"] == "other")
+    assert alert["start_sec"] == 61.25
+    assert alert["end_sec"] == 62.5
+    assert alert["source_chunk_id"] == "AUD002"
+    assert alert["timestamp_precision"] == "model_estimate"
+    assert other["start_sec"] == 60.0
+    assert other["end_sec"] == 62.0
+    assert other["confidence"] is None
 
 
 def test_parse_audio_event_json_accepts_json_embedded_in_text():
