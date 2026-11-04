@@ -7,6 +7,7 @@
 - 本地上传 MP4、MOV、M4V、MKV、WEBM、AVI 视频。
 - 通过 FFprobe 检查时长、视频流和音频流，通过 FFmpeg 抽帧。
 - 支持最长 2 小时（可配置）、默认 2 GB 上传上限的长视频输入。
+- 默认视觉粗扫描预算提高到 120 帧；30 分钟视频在均匀基线下约每 15 秒一帧，仍需事件驱动的局部加密采样捕获短暂交互。
 - 同时保留原声道/原采样率的 FLAC 参考音轨，并生成 16 kHz 单声道分析代理；后者按 60 秒切片并保留 1 秒重叠，每片记录源视频时间范围和 SHA-256。
 - 记录音频峰值/RMS、静音区间等基础信号指标；可选接入 OpenAI-compatible ASR，生成带时间戳的语音转写。
 - 将视频帧、语音转写和静音区间组织为统一视听时间轴；音频片段可从报告页面回放。
@@ -39,6 +40,7 @@ Windows PowerShell 激活环境可用：
 
     MAX_UPLOAD_MB=2048
     MAX_VIDEO_DURATION_SEC=7200
+    MAX_FRAMES=120
     AUDIO_CHUNK_DURATION_SEC=60
     AUDIO_CHUNK_OVERLAP_SEC=1
     AUDIO_TRANSCRIPTION_BASE_URL=https://api.openai.com/v1
@@ -46,7 +48,7 @@ Windows PowerShell 激活环境可用：
     AUDIO_TRANSCRIPTION_API_KEY=your-key
     AUDIO_TRANSCRIPTION_LANGUAGE=zh
 
-音频会在发现音轨时自动提取和分段，即使未配置 ASR。只有设置 `AUDIO_TRANSCRIPTION_BASE_URL` 和 `AUDIO_TRANSCRIPTION_MODEL` 才会调用转写服务。转写服务需兼容 `/audio/transcriptions`、`verbose_json` 和 segment 时间戳。音频片段每 60 秒一个请求，重叠 1 秒用于减少切分处漏词；调用会产生额外费用，建议先用短样本验证服务兼容性。
+视觉粗扫描默认最多 120 帧；若启用 VLM，须确认所选模型/服务的图片数量与上下文限制，当前 VLM 仍是图像单模态实现。音频会在发现音轨时自动提取和分段，即使未配置 ASR。只有设置 `AUDIO_TRANSCRIPTION_BASE_URL` 和 `AUDIO_TRANSCRIPTION_MODEL` 才会调用转写服务。转写服务需兼容 `/audio/transcriptions`、`verbose_json` 和 segment 时间戳。音频片段每 60 秒一个请求，重叠 1 秒用于减少切分处漏词；调用会产生额外费用，建议先用短样本验证服务兼容性。
 
 注意：当前版本已实现无损参考音轨保留、分析代理提取、基础信号指标、可选 ASR 与时间轴对齐；**还没有把音频原始波形输入视听大模型，也没有做音乐/提示音语义分类或视听联合自动评分**。当前视觉 VLM 仍然只看图片。报告会明确保留这一能力边界。16 kHz 单声道代理只用于转写和基础信号测量；主观听感检查请播放报告中的 FLAC 参考音轨。
 
