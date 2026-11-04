@@ -60,8 +60,12 @@ def test_prepare_audio_extracts_chunks_without_transcription(tmp_path, monkeypat
     monkeypatch.setattr(audio.shutil, "which", lambda _name: "/usr/bin/ffmpeg")
 
     def fake_run(command, *, timeout):
-        output = Path(command[-1])
-        _make_wav(output, seconds=5)
+        for value in command:
+            item = str(value)
+            if item.endswith("audio_source.flac"):
+                Path(item).write_bytes(b"fLaC-test-audio")
+            elif item.endswith(".analysis_audio.tmp.wav"):
+                _make_wav(Path(item), seconds=5)
         return SimpleNamespace(returncode=0, stderr="")
 
     monkeypatch.setattr(audio, "_run", fake_run)
@@ -80,6 +84,9 @@ def test_prepare_audio_extracts_chunks_without_transcription(tmp_path, monkeypat
 
     assert manifest["available"] is True
     assert manifest["analysis_sample_rate_hz"] == 16000
+    assert manifest["source_audio_file_name"] == "audio_source.flac"
+    assert manifest["source_audio_sha256"]
+    assert manifest["source_audio_size_bytes"] > 0
     assert len(manifest["chunks"]) == 2
     assert manifest["chunks"][1]["start_sec"] == 2.0
     assert manifest["transcription_status"] == "not_configured"
