@@ -210,9 +210,10 @@ def prepare_audio(
                     audio_dir / chunk["file_name"],
                     language=settings.audio_transcription_language or None,
                 )
-            except TranscriptionError as exc:
+            except Exception as exc:
+                # ASR is optional; a failed chunk must not discard other audio evidence.
                 failed_chunks.append(chunk["chunk_id"])
-                warnings.append(f"ASR failed for {chunk['chunk_id']}: {exc}")
+                warnings.append(f"ASR failed for {chunk['chunk_id']}: {type(exc).__name__}: {exc}")
                 continue
 
             response_segments = response.get("segments")
@@ -282,7 +283,7 @@ def prepare_audio(
     manifest["audio_events"] = []
 
     if getattr(settings, "audio_event_analysis_enabled", False) and chunks:
-        from .providers.openai_audio_events import AudioEventAnalysisError, analyze_audio_chunk
+        from .providers.openai_audio_events import analyze_audio_chunk
 
         max_chunks = int(getattr(settings, "audio_event_max_chunks", 40))
         if max_chunks <= 0 or len(chunks) <= max_chunks:
