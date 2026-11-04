@@ -7,7 +7,8 @@ from typing import Any
 from pydantic import ValidationError
 
 from .config import settings
-from .models import AnalysisResult, MetricScore, Observation, SamplingManifest, VideoMetadata
+from .audio import AudioProcessingError, prepare_audio
+from .models import AnalysisResult, AudioManifest, MetricScore, Observation, SamplingManifest, VideoMetadata
 from .providers.openai_compatible import ProviderError, analyze_frames
 from .storage import get_job, result_file, update_job, utc_now, write_json_atomic
 from .video import build_sampling_plan, extract_frames, probe_video
@@ -134,6 +135,11 @@ def run_analysis(job_id: str) -> None:
         if not video_path.exists():
             raise FileNotFoundError("Uploaded video file no longer exists")
         probe = probe_video(video_path)
+        if float(probe["duration_sec"]) > settings.max_video_duration_sec:
+            raise ValueError(
+                f"Video duration {float(probe['duration_sec']):.1f}s exceeds "
+                f"MAX_VIDEO_DURATION_SEC={settings.max_video_duration_sec}"
+            )
         sampling_options = job.get("sampling_options") or {}
         sampling_plan = build_sampling_plan(
             video_path,
@@ -152,6 +158,30 @@ def run_analysis(job_id: str) -> None:
             sampling_frame_count=len(timestamps),
         )
         evidence_models = extract_frames(video_path, job_id, timestamps)
+
+        update_job(job_id, stage="extracting_audio", audio_status="processing")
+        try:
+            audio_manifest_data, audio_warnings = prepare_audio(
+                video_path,
+                job_id,
+                audio_stream=probe.get("audio_stream"),
+                duration_sec=float(probe["duration_sec"]),
+            )
+        except AudioProcessingError as exc:
+            # A broken or unsupported audio track must not discard otherwise valid visual evidence.
+            audio_manifest_data = {
+                "available": bool(probe.get("audio_stream")),
+                "transcription_status": "failed",
+                "chunks": [],
+                "transcript_segments": [],
+            }
+            audio_warnings = [f"Audio processing failed; visual analysis continues: {exc}"]
+        update_job(
+            job_id,
+            audio_status=audio_manifest_data.get("transcription_status", "not_configured"),
+            audio_chunks_count=len(audio_manifest_data.get("chunks", [])),
+            transcript_segments_count=len(audio_manifest_data.get("transcript_segments", [])),
+        )
         frames_dir = settings.jobs_dir / job_id / "frames"
         frames_for_model = [
             {
@@ -163,7 +193,7 @@ def run_analysis(job_id: str) -> None:
         ]
         rubric = load_rubric()
         metadata = VideoMetadata(**job["video_metadata"])
-        warnings: list[str] = list(sampling_plan.warnings)
+        warnings: list[str] = list(sampling_plan.warnings) + audio_warnings
 
         if settings.provider_enabled:
             update_job(job_id, stage="vlm_analysis")
@@ -207,7 +237,17 @@ def run_analysis(job_id: str) -> None:
             rubric_version=rubric["version"],
             video_metadata=metadata,
             duration_sec=float(probe["duration_sec"]),
+            media_info={
+                "format_name": probe.get("format_name"),
+                "size_bytes": probe.get("size_bytes"),
+                "bit_rate": probe.get("bit_rate"),
+                "video_stream": probe.get("video_stream"),
+                "audio_stream": probe.get("audio_stream"),
+                "audio_stream_count": probe.get("audio_stream_count", 0),
+                "video_stream_count": probe.get("video_stream_count", 0),
+            },
             sampled_frames=evidence_models,
+            audio_manifest=AudioManifest(**audio_manifest_data),
             sampling_manifest=SamplingManifest(**sampling_plan.manifest),
             observations=observations,
             scores=scores,
