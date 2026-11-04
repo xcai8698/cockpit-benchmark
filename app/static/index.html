@@ -42,6 +42,37 @@ if(report.sampling_manifest){
  if(sm.scene_detection_attempted)box.append(el('div','场景切换检测：'+(sm.scene_detection_succeeded?'已完成（候选 '+sm.scene_change_candidates_sec.length+' 个）':'未完成，使用时序覆盖回退'),'muted'));
  if(sm.coverage_gaps?.length)box.append(el('div','采样覆盖缺口（大于目标间隔）：'+sm.coverage_gaps.map(g=>g.start_sec+'–'+g.end_sec+'s').join(', '),'muted'));
 }
+if(report.audio_manifest){
+ const am=report.audio_manifest;
+ box.append(el('div','音频证据：'+(am.available?'已提取':'未发现音轨')+' · ASR：'+am.transcription_status+' · 音频分段：'+(am.chunks?.length||0),'muted'));
+ if(am.signal_metrics){
+  const metrics=am.signal_metrics;
+  const summary=[
+   metrics.peak_dbfs!=null?'峰值 '+metrics.peak_dbfs+' dBFS':null,
+   metrics.rms_dbfs!=null?'RMS '+metrics.rms_dbfs+' dBFS':null,
+   '静音区间 '+(metrics.silence_interval_count||0)
+  ].filter(Boolean).join(' · ');
+  if(summary)box.append(el('div',summary,'muted'));
+ }
+ if(am.transcript_segments?.length){
+  box.append(el('div','语音转写（'+am.transcript_segments.length+' 段）'));
+  const transcript=el('div',undefined,'muted');
+  transcript.style.maxHeight='220px';transcript.style.overflow='auto';transcript.style.padding='8px';transcript.style.background='#f7f9fb';transcript.style.borderRadius='8px';
+  for(const seg of am.transcript_segments){
+   transcript.append(el('div','['+Number(seg.start_sec).toFixed(1)+'–'+Number(seg.end_sec).toFixed(1)+'s] '+seg.text));
+  }
+  box.append(transcript);
+ }
+ if(am.chunks?.length){
+  const details=el('details'),summary=el('summary','查看音频片段 / 播放证据');details.append(summary);
+  for(const chunk of am.chunks){
+   const row=el('div');row.style.marginTop='8px';
+   row.append(el('div',chunk.chunk_id+' · '+Number(chunk.start_sec).toFixed(1)+'–'+Number(chunk.end_sec).toFixed(1)+'s','muted'));
+   const player=el('audio');player.controls=true;player.preload='none';player.src='/api/v1/analyses/'+job.analysis_id+'/audio/'+chunk.file_name;player.style.width='100%';row.append(player);details.append(row);
+  }
+  box.append(details);
+ }
+}
 const scores=el('div',undefined,'scores');for(const s of report.scores){const c=el('div',undefined,'score');c.append(el('div',s.metric_id),el('strong',s.score==null?'证据不足 / 未评分':s.score+' / 5'),el('div',s.rationale,'muted'),el('div','证据：'+(s.evidence_ids.join(', ')||'无'),'muted'));scores.append(c);}box.append(scores);
 box.append(el('div','证据帧（'+report.sampled_frames.length+'）'));const frames=el('div',undefined,'frames');for(const f of report.sampled_frames){const c=el('div',undefined,'frame'),img=el('img');img.loading='lazy';img.src='/api/v1/analyses/'+job.analysis_id+'/evidence/'+f.file_name;img.alt=f.evidence_id;c.append(img,el('div',f.evidence_id+' · 目标时间 '+Number(f.timestamp_sec).toFixed(3)+'s'));frames.append(c);}box.append(frames);
 if(report.warnings?.length)box.append(el('pre','提示：\n'+report.warnings.join('\n')));
