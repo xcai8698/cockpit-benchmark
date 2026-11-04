@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
@@ -55,6 +55,47 @@ class SamplingManifest(BaseModel):
     coverage_gaps: list[CoverageGap] = Field(default_factory=list)
 
 
+class AudioChunkEvidence(BaseModel):
+    chunk_id: str
+    file_name: str
+    sha256: str
+    start_sec: float = Field(ge=0)
+    end_sec: float = Field(ge=0)
+    duration_sec: float = Field(ge=0)
+    sample_rate_hz: int = Field(gt=0)
+    channels: int = Field(gt=0)
+    timestamp_semantics: Literal["source_video_timeline"] = "source_video_timeline"
+
+
+class AudioTranscriptSegment(BaseModel):
+    transcript_id: str
+    start_sec: float = Field(ge=0)
+    end_sec: float = Field(ge=0)
+    text: str = Field(min_length=1, max_length=4000)
+    source_chunk_id: str
+    timestamp_precision: Literal["asr_segment", "chunk_window"]
+
+
+class AudioManifest(BaseModel):
+    available: bool
+    stream_index: int | None = None
+    source_codec: str | None = None
+    source_sample_rate_hz: int | None = None
+    source_channels: int | None = None
+    analysis_sample_rate_hz: int | None = None
+    analysis_channels: int | None = None
+    analysis_format: str | None = None
+    duration_sec: float | None = Field(default=None, ge=0)
+    chunk_duration_sec: int | None = None
+    chunk_overlap_sec: float | None = None
+    chunks: list[AudioChunkEvidence] = Field(default_factory=list)
+    signal_metrics: dict[str, Any] = Field(default_factory=dict)
+    transcription_status: Literal["not_configured", "completed", "partial", "failed", "skipped_no_audio"] = "not_configured"
+    transcription_model: str | None = None
+    transcript_segments: list[AudioTranscriptSegment] = Field(default_factory=list)
+    failed_chunk_ids: list[str] = Field(default_factory=list)
+
+
 class Observation(BaseModel):
     evidence_id: str
     observation: str = Field(min_length=1, max_length=1200)
@@ -95,8 +136,10 @@ class AnalysisResult(BaseModel):
     rubric_version: str
     video_metadata: VideoMetadata
     duration_sec: float
+    media_info: dict[str, Any] = Field(default_factory=dict)
     sampled_frames: list[EvidenceFrame]
     sampling_manifest: SamplingManifest | None = None
+    audio_manifest: AudioManifest | None = None
     observations: list[Observation] = Field(default_factory=list)
     scores: list[MetricScore]
     overall_score_100: float | None = None
