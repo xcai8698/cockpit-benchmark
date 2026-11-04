@@ -76,6 +76,20 @@ class AudioTranscriptSegment(BaseModel):
     timestamp_precision: Literal["asr_segment", "chunk_window"]
 
 
+class AudioEventEvidence(BaseModel):
+    audio_event_id: str
+    event_type: Literal[
+        "speech", "navigation_prompt", "voice_assistant", "alert_tone",
+        "turn_signal_click", "button_feedback", "music", "cabin_noise", "other",
+    ]
+    start_sec: float = Field(ge=0)
+    end_sec: float = Field(ge=0)
+    description: str = Field(min_length=1, max_length=1000)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    source_chunk_id: str
+    timestamp_precision: Literal["model_estimate"] = "model_estimate"
+
+
 class AudioManifest(BaseModel):
     available: bool
     stream_index: int | None = None
@@ -97,17 +111,23 @@ class AudioManifest(BaseModel):
     transcription_model: str | None = None
     transcript_segments: list[AudioTranscriptSegment] = Field(default_factory=list)
     failed_chunk_ids: list[str] = Field(default_factory=list)
+    event_analysis_status: Literal["not_configured", "completed", "partial", "failed"] = "not_configured"
+    event_analysis_model: str | None = None
+    event_analysis_chunks: list[str] = Field(default_factory=list)
+    skipped_event_chunk_ids: list[str] = Field(default_factory=list)
+    failed_event_chunk_ids: list[str] = Field(default_factory=list)
+    audio_events: list[AudioEventEvidence] = Field(default_factory=list)
 
 
 class AVTimelineEvent(BaseModel):
     event_id: str
-    event_type: Literal["visual_frame", "speech_transcript", "audio_silence"]
+    event_type: Literal["visual_frame", "speech_transcript", "audio_silence", "audio_event"]
     modality: Literal["visual", "audio"]
     start_sec: float = Field(ge=0)
     end_sec: float = Field(ge=0)
     description: str = Field(min_length=1, max_length=2000)
     evidence_refs: list[str] = Field(default_factory=list)
-    timestamp_precision: Literal["seek_target", "asr_segment", "chunk_window", "signal_interval"]
+    timestamp_precision: Literal["seek_target", "asr_segment", "chunk_window", "signal_interval", "model_estimate"]
 
 
 class Observation(BaseModel):
