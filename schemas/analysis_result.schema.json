@@ -481,6 +481,25 @@
             },
             "additionalProperties": false
           }
+        },
+        "source_audio_file_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_audio_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_audio_size_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
         }
       },
       "additionalProperties": false
