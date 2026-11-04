@@ -149,3 +149,69 @@ def test_audio_manifest_accepts_timestamped_sound_event_evidence():
 
     assert manifest.event_analysis_status == "completed"
     assert manifest.audio_events[0].source_chunk_id == "AUD001"
+
+
+def test_prepare_audio_runs_sound_event_model_when_configured(tmp_path, monkeypatch):
+    fake_settings = SimpleNamespace(
+        ffmpeg_bin="ffmpeg",
+        jobs_dir=tmp_path / "jobs",
+        audio_analysis_sample_rate_hz=16000,
+        audio_chunk_duration_sec=3,
+        audio_chunk_overlap_sec=1,
+        audio_transcription_enabled=False,
+        audio_event_analysis_enabled=True,
+        audio_event_model="audio-test-model",
+        audio_event_base_url="http://localhost/v1",
+        audio_event_api_key="test-key",
+        audio_event_timeout_sec=30,
+        audio_event_max_chunks=40,
+    )
+    monkeypatch.setattr(audio, "settings", fake_settings)
+    monkeypatch.setattr(audio.shutil, "which", lambda _name: "/usr/bin/ffmpeg")
+
+    def fake_run(command, *, timeout):
+        for value in command:
+            item = str(value)
+            if item.endswith("audio_source.flac"):
+                Path(item).write_bytes(b"fLaC-test-audio")
+            elif item.endswith(".analysis_audio.tmp.wav"):
+                _make_wav(Path(item), seconds=5)
+        return SimpleNamespace(returncode=0, stderr="")
+
+    monkeypatch.setattr(audio, "_run", fake_run)
+    monkeypatch.setattr(
+        audio,
+        "_audio_signal_stats",
+        lambda *_args, **_kwargs: {"peak_dbfs": -1.0, "rms_dbfs": -20.0, "silence_interval_count": 0},
+    )
+    from app.providers import openai_audio_events
+
+    calls = []
+
+    def fake_analyze(path, **kwargs):
+        calls.append((path.name, kwargs["chunk_id"]))
+        return [{
+            "event_type": "alert_tone",
+            "start_sec": kwargs["chunk_start_sec"] + 0.25,
+            "end_sec": kwargs["chunk_start_sec"] + 0.75,
+            "description": "Short warning chime",
+            "confidence": 0.9,
+            "source_chunk_id": kwargs["chunk_id"],
+            "timestamp_precision": "model_estimate",
+        }]
+
+    monkeypatch.setattr(openai_audio_events, "analyze_audio_chunk", fake_analyze)
+    manifest, warnings = audio.prepare_audio(
+        tmp_path / "source.mp4",
+        "event-job",
+        audio_stream={"index": 1, "codec_name": "aac", "sample_rate": 48000, "channels": 2},
+        duration_sec=5,
+    )
+
+    assert len(calls) == 2
+    assert manifest["event_analysis_status"] == "completed"
+    assert manifest["event_analysis_model"] == "audio-test-model"
+    assert len(manifest["audio_events"]) == 2
+    assert manifest["audio_events"][0]["audio_event_id"] == "AE00001"
+    AudioManifest(**manifest)
+    assert any("ASR is not configured" in warning for warning in warnings)
