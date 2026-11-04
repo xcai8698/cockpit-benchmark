@@ -37,6 +37,11 @@ class Settings:
     audio_transcription_model: str = os.getenv("AUDIO_TRANSCRIPTION_MODEL", "").strip()
     audio_transcription_language: str = os.getenv("AUDIO_TRANSCRIPTION_LANGUAGE", "zh").strip()
     audio_transcription_timeout_sec: int = int(os.getenv("AUDIO_TRANSCRIPTION_TIMEOUT_SEC", "180"))
+    audio_event_base_url: str = os.getenv("AUDIO_EVENT_BASE_URL", "").strip()
+    audio_event_api_key: str = os.getenv("AUDIO_EVENT_API_KEY", "").strip() or os.getenv("OPENAI_API_KEY", "").strip()
+    audio_event_model: str = os.getenv("AUDIO_EVENT_MODEL", "").strip()
+    audio_event_timeout_sec: int = int(os.getenv("AUDIO_EVENT_TIMEOUT_SEC", "240"))
+    audio_event_max_chunks: int = int(os.getenv("AUDIO_EVENT_MAX_CHUNKS", "40"))
 
     @property
     def videos_dir(self) -> Path:
@@ -53,6 +58,10 @@ class Settings:
     @property
     def audio_transcription_enabled(self) -> bool:
         return bool(self.audio_transcription_base_url and self.audio_transcription_model)
+
+    @property
+    def audio_event_analysis_enabled(self) -> bool:
+        return bool(self.audio_event_base_url and self.audio_event_model)
 
     @property
     def require_human_review(self) -> bool:
