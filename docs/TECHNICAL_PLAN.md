@@ -57,13 +57,13 @@ AIHOT integration scaffold is separate from the Analyzer and has not been regist
 
 - Default upload cap is 2048 MB and maximum duration is 7200 seconds; both are configurable. The reverse proxy and host storage must be configured consistently.
 - FFprobe records the selected video and audio stream metadata, including codec, dimensions/frame rate, audio sample rate and channels.
-- FFmpeg extracts the first audio stream to mono 16 kHz signed 16-bit PCM for analysis. The temporary full-length WAV is removed after chunking.
+- FFmpeg preserves the first audio stream as a FLAC reference track at its decoded source sample rate/channel count. It separately extracts mono 16 kHz signed 16-bit PCM as the ASR/signal-analysis proxy; the temporary full-length WAV is removed after chunking.
 - Audio is split into 60-second WAV chunks with 1-second overlap. Each chunk is stored with start/end time on the source-video timeline and SHA-256.
 - FFmpeg `astats` and `silencedetect` provide basic peak/RMS and near-silence indicators. These are signal measurements, not semantic classification or subjective sound-quality scores.
 - Optional ASR uses an OpenAI-compatible `/audio/transcriptions` endpoint, requests verbose segment timestamps, offsets each segment into the source-video timeline, and deduplicates exact repeated text in chunk overlaps. If only whole-chunk text is returned, timestamp precision is explicitly marked as `chunk_window`.
 - Transcription is optional and can incur provider charges. Failed ASR chunks are reported without discarding the visual evidence.
 - `av_timeline` currently links visual frame timestamps, ASR transcript segments and detected near-silence intervals. It does not yet contain sound-event semantics such as turn-indicator clicks, alerts, music or cabin noise classification.
-- Current VLM remains image-only. The report does not claim audiovisual joint understanding or audio-based cockpit scoring. A later multimodal evaluator must ingest aligned audio segments and visual evidence together and cite both.
+- Current VLM remains image-only. The report does not claim audiovisual joint understanding or audio-based cockpit scoring. The FLAC reference is available for listening review; the mono 16 kHz proxy is not a substitute for source-quality spatial or timbral assessment. A later multimodal evaluator must ingest aligned source audio segments and visual evidence together and cite both.
 
 ## 5. Evidence and scoring rules
 
