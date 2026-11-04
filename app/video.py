@@ -44,7 +44,9 @@ def probe_video(video_path: Path) -> dict[str, Any]:
     if not shutil.which(settings.ffprobe_bin):
         raise VideoProcessingError(f"ffprobe executable not found: {settings.ffprobe_bin}")
     cmd = [
-        settings.ffprobe_bin, "-v", "error", "-show_entries", "format=duration,format_name",
+        settings.ffprobe_bin, "-v", "error", "-show_streams",
+        "-show_entries",
+        "format=duration,format_name,size,bit_rate:stream=index,codec_type,codec_name,width,height,avg_frame_rate,sample_rate,channels,channel_layout,bit_rate",
         "-of", "json", str(video_path),
     ]
     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
@@ -57,7 +59,34 @@ def probe_video(video_path: Path) -> dict[str, Any]:
         raise VideoProcessingError("Could not determine video duration") from exc
     if not math.isfinite(duration) or duration <= 0:
         raise VideoProcessingError("Video duration must be greater than zero")
-    return {"duration_sec": duration, "format_name": payload.get("format", {}).get("format_name")}
+    streams = payload.get("streams", [])
+    if not isinstance(streams, list):
+        streams = []
+    video_streams = [stream for stream in streams if isinstance(stream, dict) and stream.get("codec_type") == "video"]
+    audio_streams = [stream for stream in streams if isinstance(stream, dict) and stream.get("codec_type") == "audio"]
+
+    def normalise_stream(stream: dict[str, Any]) -> dict[str, Any]:
+        result = dict(stream)
+        for key in ("index", "width", "height", "channels", "sample_rate", "bit_rate"):
+            if key in result:
+                try:
+                    result[key] = int(result[key])
+                except (ValueError, TypeError):
+                    result[key] = None
+        return result
+
+    format_info = payload.get("format", {}) if isinstance(payload.get("format"), dict) else {}
+    return {
+        "duration_sec": duration,
+        "format_name": format_info.get("format_name"),
+        "size_bytes": int(format_info["size"]) if str(format_info.get("size", "")).isdigit() else None,
+        "bit_rate": int(format_info["bit_rate"]) if str(format_info.get("bit_rate", "")).isdigit() else None,
+        "streams": [normalise_stream(stream) for stream in streams if isinstance(stream, dict)],
+        "video_stream": normalise_stream(video_streams[0]) if video_streams else None,
+        "audio_stream": normalise_stream(audio_streams[0]) if audio_streams else None,
+        "audio_stream_count": len(audio_streams),
+        "video_stream_count": len(video_streams),
+    }
 
 
 def _evenly_select(values: list[float], count: int) -> list[float]:
