@@ -236,6 +236,20 @@ def evidence_file(analysis_id: str, filename: str):
     return FileResponse(path, media_type="image/jpeg", filename=filename)
 
 
+@app.get("/api/v1/analyses/{analysis_id}/audio/{filename}")
+def audio_evidence_file(analysis_id: str, filename: str):
+    _validate_analysis_id(analysis_id)
+    if not re.fullmatch(r"audio_chunk_\d{3}\.wav", filename):
+        raise HTTPException(status_code=400, detail="Invalid audio evidence filename")
+    job = get_job(analysis_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    path = job_dir(analysis_id) / "audio" / filename
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Audio evidence chunk not found")
+    return FileResponse(path, media_type="audio/wav", filename=filename)
+
+
 @app.get("/api/v1/rubric")
 def rubric():
     path = Path(__file__).resolve().parents[1] / "config" / "rubric.v1.json"
