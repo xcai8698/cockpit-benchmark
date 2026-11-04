@@ -239,15 +239,16 @@ def evidence_file(analysis_id: str, filename: str):
 @app.get("/api/v1/analyses/{analysis_id}/audio/{filename}")
 def audio_evidence_file(analysis_id: str, filename: str):
     _validate_analysis_id(analysis_id)
-    if not re.fullmatch(r"audio_chunk_\d{3}\.wav", filename):
+    if filename != "audio_source.flac" and not re.fullmatch(r"audio_chunk_\d{3}\.wav", filename):
         raise HTTPException(status_code=400, detail="Invalid audio evidence filename")
     job = get_job(analysis_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Analysis not found")
     path = job_dir(analysis_id) / "audio" / filename
     if not path.is_file():
-        raise HTTPException(status_code=404, detail="Audio evidence chunk not found")
-    return FileResponse(path, media_type="audio/wav", filename=filename)
+        raise HTTPException(status_code=404, detail="Audio evidence file not found")
+    media_type = "audio/flac" if filename.endswith(".flac") else "audio/wav"
+    return FileResponse(path, media_type=media_type, filename=filename)
 
 
 @app.get("/api/v1/rubric")
