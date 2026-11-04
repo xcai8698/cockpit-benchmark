@@ -61,11 +61,13 @@ AIHOT integration scaffold is separate from the Analyzer and has not been regist
 - FFprobe records the selected video and audio stream metadata, including codec, dimensions/frame rate, audio sample rate and channels.
 - FFmpeg preserves the first audio stream as a FLAC reference track at its decoded source sample rate/channel count. It separately extracts mono 16 kHz signed 16-bit PCM as the ASR/signal-analysis proxy; the temporary full-length WAV is removed after chunking.
 - Audio is split into 60-second WAV chunks with 1-second overlap. Each chunk is stored with start/end time on the source-video timeline and SHA-256.
-- FFmpeg `astats` and `silencedetect` provide basic peak/RMS and near-silence indicators. These are signal measurements, not semantic classification or subjective sound-quality scores.
+- FFmpeg `astats` and `silencedetect` provide basic peak/RMS and near-silence indicators. These are signal measurements, not subjective sound-quality scores.
+- Optional audio event analysis uses a separately configured audio-input-capable Chat Completions model. It labels candidate speech, navigation prompts, assistant speech, alert tones, turn-signal clicks, button feedback, music and cabin noise with chunk-relative model-estimated timestamps that are offset to the source-video timeline.
+- Audio event analysis has an independent per-video chunk budget (`AUDIO_EVENT_MAX_CHUNKS`, default 40). Budget-skipped and failed chunks are disclosed in the manifest; a 30-minute video normally fits within the default budget at 60-second chunks with 1-second overlap.
 - Optional ASR uses an OpenAI-compatible `/audio/transcriptions` endpoint, requests verbose segment timestamps, offsets each segment into the source-video timeline, and deduplicates exact repeated text in chunk overlaps. If only whole-chunk text is returned, timestamp precision is explicitly marked as `chunk_window`.
 - Transcription is optional and can incur provider charges. Failed ASR chunks are reported without discarding the visual evidence.
-- `av_timeline` currently links visual frame timestamps, ASR transcript segments and detected near-silence intervals. It does not yet contain sound-event semantics such as turn-indicator clicks, alerts, music or cabin noise classification.
-- Current VLM remains image-only. The report does not claim audiovisual joint understanding or audio-based cockpit scoring. The FLAC reference is available for listening review; the mono 16 kHz proxy is not a substitute for source-quality spatial or timbral assessment. A later multimodal evaluator must ingest aligned source audio segments and visual evidence together and cite both.
+- `av_timeline` links visual frame timestamps, ASR transcript segments, detected near-silence intervals and optional sound-event candidates. Sound-event model timestamps are estimates, not frame-accurate measurements; the source audio chunk is retained as the evidence reference for replay.
+- The visual VLM and audio event model are still independent specialist passes. The timeline aligns their evidence but does not yet perform joint audiovisual consistency scoring. A later fusion evaluator must compare visual observations with timestamped audio events/transcripts and cite both modalities before a cross-modal score can be produced.
 
 ## 5. Evidence and scoring rules
 
@@ -128,6 +130,10 @@ This is an internal-development MVP, not an internet-facing service. Before shar
 - The planner is deterministic for a given duration, configuration, scene-candidate list, and supplemental timestamp list. FFmpeg version and source-video hash should also be pinned in a production audit record.
 
 ## 10. Next milestones
+
+Sprint 6 — audiovisual fusion evaluator: compare timestamped visual observations with ASR and sound-event candidates on the shared source timeline; implement cross-modal consistency metrics with evidence references from both modalities and a human-labelled validation set.
+
+Sprint 7 — long-video event sampling: use the coarse visual scan, ASR and audio-event timeline to allocate dense local visual/audio evidence around candidate events, while recording the selection policy and coverage gaps.
 
 Sprint 3 — CI hardening: keep the GitHub Actions Python suite green, add tests for upload boundaries and evidence/report invariants, and fix packaging issues revealed by clean CI runs.
 
