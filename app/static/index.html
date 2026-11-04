@@ -63,6 +63,18 @@ if(report.audio_manifest){
   }
   box.append(transcript);
  }
+ if(report.av_timeline?.length){
+  const timeline=el('details'),timelineSummary=el('summary','查看统一视听时间轴（'+report.av_timeline.length+' 个事件）');timeline.append(timelineSummary);
+  for(const event of report.av_timeline){
+   const row=el('div');row.style.padding='6px 0';row.style.borderBottom='1px solid #e5eaf0';
+   const time=event.start_sec===event.end_sec?Number(event.start_sec).toFixed(1)+'s':Number(event.start_sec).toFixed(1)+'–'+Number(event.end_sec).toFixed(1)+'s';
+   row.append(el('div',time+' · '+event.modality+' / '+event.event_type,'muted'));
+   row.append(el('div',event.description));
+   if(event.evidence_refs?.length)row.append(el('div','证据：'+event.evidence_refs.join(', '),'muted'));
+   timeline.append(row);
+  }
+  box.append(timeline);
+ }
  if(am.chunks?.length){
   const details=el('details'),summary=el('summary','查看音频片段 / 播放证据');details.append(summary);
   for(const chunk of am.chunks){
