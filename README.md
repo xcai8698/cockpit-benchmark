@@ -47,10 +47,16 @@ Windows PowerShell 激活环境可用：
     AUDIO_TRANSCRIPTION_MODEL=whisper-1
     AUDIO_TRANSCRIPTION_API_KEY=your-key
     AUDIO_TRANSCRIPTION_LANGUAGE=zh
+    AUDIO_EVENT_BASE_URL=https://api.openai.com/v1
+    AUDIO_EVENT_MODEL=gpt-audio-mini
+    AUDIO_EVENT_API_KEY=your-key
+    AUDIO_EVENT_MAX_CHUNKS=40
 
-视觉粗扫描默认最多 120 帧；若启用 VLM，须确认所选模型/服务的图片数量与上下文限制，当前 VLM 仍是图像单模态实现。音频会在发现音轨时自动提取和分段，即使未配置 ASR。只有设置 `AUDIO_TRANSCRIPTION_BASE_URL` 和 `AUDIO_TRANSCRIPTION_MODEL` 才会调用转写服务。转写服务需兼容 `/audio/transcriptions`、`verbose_json` 和 segment 时间戳。音频片段每 60 秒一个请求，重叠 1 秒用于减少切分处漏词；调用会产生额外费用，建议先用短样本验证服务兼容性。
+视觉粗扫描默认最多 120 帧；若启用 VLM，须确认所选模型/服务的图片数量与上下文限制。音频会在发现音轨时自动提取和分段，即使未配置 ASR。只有设置 `AUDIO_TRANSCRIPTION_BASE_URL` 和 `AUDIO_TRANSCRIPTION_MODEL` 才会调用转写服务。转写服务需兼容 `/audio/transcriptions`、`verbose_json` 和 segment 时间戳。音频片段每 60 秒一个请求，重叠 1 秒用于减少切分处漏词。
 
-注意：当前版本已实现无损参考音轨保留、分析代理提取、基础信号指标、可选 ASR 与时间轴对齐；**还没有把音频原始波形输入视听大模型，也没有做音乐/提示音语义分类或视听联合自动评分**。当前视觉 VLM 仍然只看图片。报告会明确保留这一能力边界。16 kHz 单声道代理只用于转写和基础信号测量；主观听感检查请播放报告中的 FLAC 参考音轨。
+可选配置 `AUDIO_EVENT_BASE_URL` 和 `AUDIO_EVENT_MODEL` 启用音频事件理解。它通过 OpenAI-compatible Chat Completions 的音频输入能力分析每个音频片段，生成导航播报、语音助手、告警音、转向灯点击声、按键反馈、音乐和座舱噪声等带时间戳事件。默认每条视频最多分析 40 个片段；30 分钟视频在当前 60 秒分片策略下通常会分析全部片段。该能力需要真正支持音频输入的模型和兼容的服务端；普通文本模型或仅支持 ASR 的端点不能使用。相关调用会产生额外费用。
+
+能力边界：**视觉 VLM 和音频事件模型目前是两个独立分析器，时间轴将其证据对齐，但还没有让一个模型同时理解原始画面和原始声音，也没有实现正式的跨模态一致性评分**。音频事件模型输出的时间戳是模型估计值，不应当当作精确测量；每个事件保留音频片段 ID，需人工回放核验。16 kHz 单声道代理用于转写和声音事件分析；主观听感检查请播放报告中的 FLAC 参考音轨。
 
 上传限制还需同步检查反向代理（例如 Nginx 的 `client_max_body_size`）和磁盘容量。默认最长 2 小时，不等于建议每次都上传这么长；视频及音频分段会占用持久化磁盘。
 
