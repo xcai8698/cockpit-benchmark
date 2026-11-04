@@ -155,6 +155,17 @@ def _build_av_timeline(
             ),
         })
 
+    for event in audio_manifest.get("audio_events", []):
+        events.append({
+            "event_type": "audio_event",
+            "modality": "audio",
+            "start_sec": float(event["start_sec"]),
+            "end_sec": float(event["end_sec"]),
+            "description": f'{event["event_type"]}: {event["description"]}'[:2000],
+            "evidence_refs": [event["audio_event_id"], event["source_chunk_id"]],
+            "timestamp_precision": "model_estimate",
+        })
+
     metrics = audio_manifest.get("signal_metrics", {})
     for silence in metrics.get("silence_intervals", []):
         start = float(silence["start_sec"])
