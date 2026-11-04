@@ -43,6 +43,15 @@ def _message_text(payload: dict[str, Any]) -> str:
 
 def _parse_event_json(text: str) -> dict[str, Any]:
     cleaned = text.strip()
+    fence = chr(96) * 3
+    if cleaned.startswith(fence):
+        lines = cleaned.splitlines()
+        lines = lines[1:] if lines else lines
+        if lines and lines[-1].strip().startswith(fence):
+            lines = lines[:-1]
+        cleaned = "\n".join(lines).strip()
+        if cleaned[:4].lower() == "json":
+            cleaned = cleaned[4:].strip()
     try:
         value = json.loads(cleaned)
     except json.JSONDecodeError:
