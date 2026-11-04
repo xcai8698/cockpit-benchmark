@@ -89,6 +89,12 @@ class AudioEventEvidence(BaseModel):
     source_chunk_id: str
     timestamp_precision: Literal["model_estimate"] = "model_estimate"
 
+    @model_validator(mode="after")
+    def valid_interval(self):
+        if self.end_sec < self.start_sec:
+            raise ValueError("Audio event end_sec must be greater than or equal to start_sec")
+        return self
+
 
 class AudioManifest(BaseModel):
     available: bool
