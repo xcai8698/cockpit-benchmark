@@ -144,11 +144,17 @@ def prepare_audio(
     stream_index = int(audio_stream["index"])
     timeout = max(300, int(duration_sec * 2) + 120)
 
+    source_audio_path = audio_dir / "audio_source.flac"
     command = [
         settings.ffmpeg_bin, "-hide_banner", "-loglevel", "error", "-y",
-        "-i", str(video_path), "-map", f"0:{stream_index}", "-vn",
-        "-ac", "1", "-ar", str(settings.audio_analysis_sample_rate_hz),
-        "-c:a", "pcm_s16le", str(temp_wav),
+        "-i", str(video_path),
+        # Lossless reference track retains the source channel count and sample rate.
+        "-map", f"0:{stream_index}", "-vn", "-c:a", "flac", "-compression_level", "5",
+        str(source_audio_path),
+        # Separate mono 16 kHz working copy is for ASR and signal measurements only.
+        "-map", f"0:{stream_index}", "-vn", "-ac", "1",
+        "-ar", str(settings.audio_analysis_sample_rate_hz), "-c:a", "pcm_s16le",
+        str(temp_wav),
     ]
     try:
         _run(command, timeout=timeout)
@@ -172,6 +178,9 @@ def prepare_audio(
         "source_codec": audio_stream.get("codec_name"),
         "source_sample_rate_hz": audio_stream.get("sample_rate"),
         "source_channels": audio_stream.get("channels"),
+        "source_audio_file_name": source_audio_path.name,
+        "source_audio_sha256": sha256_file(source_audio_path),
+        "source_audio_size_bytes": source_audio_path.stat().st_size,
         "analysis_sample_rate_hz": settings.audio_analysis_sample_rate_hz,
         "analysis_channels": 1,
         "analysis_format": "pcm_s16le_wav",
