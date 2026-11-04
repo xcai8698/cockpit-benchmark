@@ -54,6 +54,10 @@ if(report.audio_manifest){
   ].filter(Boolean).join(' · ');
   if(summary)box.append(el('div',summary,'muted'));
  }
+ if(am.source_audio_file_name){
+  box.append(el('div','原始音轨回放（保留原声道与采样率）'));
+  const sourcePlayer=el('audio');sourcePlayer.controls=true;sourcePlayer.preload='none';sourcePlayer.src='/api/v1/analyses/'+job.analysis_id+'/audio/'+am.source_audio_file_name;sourcePlayer.style.width='100%';box.append(sourcePlayer);
+ }
  if(am.transcript_segments?.length){
   box.append(el('div','语音转写（'+am.transcript_segments.length+' 段）'));
   const transcript=el('div',undefined,'muted');
