@@ -88,7 +88,7 @@ def _normalise_events(
         if not isinstance(description, str) or not description.strip():
             continue
         event_type = item.get("event_type")
-        if event_type not in EVENT_TYPES:
+        if not isinstance(event_type, str) or event_type not in EVENT_TYPES:
             event_type = "other"
         confidence = item.get("confidence")
         try:
