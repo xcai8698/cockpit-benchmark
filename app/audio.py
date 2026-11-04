@@ -200,7 +200,7 @@ def prepare_audio(
         )
 
     if settings.audio_transcription_enabled:
-        from .providers.openai_transcription import TranscriptionError, transcribe_audio_file
+        from .providers.openai_transcription import transcribe_audio_file
 
         transcript_segments: list[dict[str, Any]] = []
         failed_chunks: list[str] = []
