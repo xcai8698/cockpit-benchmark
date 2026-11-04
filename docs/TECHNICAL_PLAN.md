@@ -10,7 +10,7 @@ Build a reproducible, evidence-grounded workflow for comparing cockpit experienc
 Implemented:
 - Manual upload of a local video file.
 - FFprobe format/video/audio stream inspection and FFmpeg frame extraction.
-- Long-video configuration (default 2 GB upload limit and 2-hour duration cap).
+- Long-video configuration (default 2 GB upload limit, 2-hour duration cap and 120-frame visual evidence budget).
 - Audio extraction to mono 16 kHz PCM, 60-second overlapping chunks, signal-level RMS/peak/silence indicators, and optional timestamped ASR.
 - Unified audiovisual timeline linking visual frames, transcript segments, and detected near-silence intervals to source-time evidence.
 - Evidence IDs, seek-target timestamps, frame dimensions, and SHA-256 hashes.
@@ -43,8 +43,8 @@ AIHOT integration scaffold is separate from the Analyzer and has not been regist
 | Path | Responsibility |
 |---|---|
 | app/main.py | Upload, status, report, evidence and review API endpoints |
-| app/video.py | FFprobe duration extraction, FFmpeg sampling and frame hashes |
-| app/pipeline.py | Job orchestration, rubric loading, model-output normalization and report generation |
+| app/video.py | FFprobe media-stream probing, FFmpeg sampling and frame hashes |
+| app/audio.py | Audio extraction, reference track, chunking, signal metrics and optional ASR |\n| app/providers/openai_transcription.py | OpenAI-compatible ASR adapter |\n| app/pipeline.py | Job orchestration, rubric loading, model-output normalization and report generation |
 | app/providers/openai_compatible.py | Vision-capable OpenAI-compatible chat-completions API |
 | app/models.py | Pydantic report, frame, observation, and score models |
 | app/storage.py | Local JSON persistence with atomic file replacement |
@@ -55,7 +55,8 @@ AIHOT integration scaffold is separate from the Analyzer and has not been regist
 
 ## 4. Long-video audio processing
 
-- Default upload cap is 2048 MB and maximum duration is 7200 seconds; both are configurable. The reverse proxy and host storage must be configured consistently.
+- Default upload cap is 2048 MB, maximum duration is 7200 seconds, and visual evidence cap is 120 frames; all are configurable. The reverse proxy and host storage must be configured consistently.
+- At 30 minutes, 120 uniformly distributed frames provide roughly one frame every 15 seconds. This is a coarse full-video scan, not a guarantee of detecting transient interactions; event-driven local densification is a follow-up milestone.
 - FFprobe records the selected video and audio stream metadata, including codec, dimensions/frame rate, audio sample rate and channels.
 - FFmpeg preserves the first audio stream as a FLAC reference track at its decoded source sample rate/channel count. It separately extracts mono 16 kHz signed 16-bit PCM as the ASR/signal-analysis proxy; the temporary full-length WAV is removed after chunking.
 - Audio is split into 60-second WAV chunks with 1-second overlap. Each chunk is stored with start/end time on the source-video timeline and SHA-256.
@@ -87,7 +88,7 @@ AIHOT integration scaffold is separate from the Analyzer and has not been regist
 - GET /api/v1/analyses/{id} — job status; filesystem path is omitted.
 - GET /api/v1/analyses/{id}/report — structured report JSON.
 - GET /api/v1/analyses/{id}/evidence/{filename} — sampled evidence frame.
-- GET /api/v1/analyses/{id}/audio/{filename} — extracted timestamped audio chunk.
+- GET /api/v1/analyses/{id}/audio/{filename} — lossless source audio track or timestamped analysis chunk.
 - POST /api/v1/analyses/{id}/review — local review decision.
 - GET /api/v1/rubric — current rubric.
 
