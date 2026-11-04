@@ -44,7 +44,8 @@ AIHOT integration scaffold is separate from the Analyzer and has not been regist
 |---|---|
 | app/main.py | Upload, status, report, evidence and review API endpoints |
 | app/video.py | FFprobe media-stream probing, FFmpeg sampling and frame hashes |
-| app/audio.py | Audio extraction, reference track, chunking, signal metrics and optional ASR |\n| app/providers/openai_transcription.py | OpenAI-compatible ASR adapter |\n| app/pipeline.py | Job orchestration, rubric loading, model-output normalization and report generation |
+| app/audio.py | Audio extraction, reference track, chunking, signal metrics and optional ASR |
+| app/providers/openai_transcription.py | OpenAI-compatible ASR adapter |\n| app/pipeline.py | Job orchestration, rubric loading, model-output normalization and report generation |
 | app/providers/openai_compatible.py | Vision-capable OpenAI-compatible chat-completions API |
 | app/models.py | Pydantic report, frame, observation, and score models |
 | app/storage.py | Local JSON persistence with atomic file replacement |
