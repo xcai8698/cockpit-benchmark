@@ -111,3 +111,37 @@ def test_audio_event_request_sends_audio_input_and_returns_source_timestamps(tmp
     assert events[0]["start_sec"] == 65.0
     assert events[0]["end_sec"] == 67.0
     assert events[0]["source_chunk_id"] == "AUD002"
+
+
+def test_audio_event_is_linked_into_the_source_time_av_timeline():
+    from app.pipeline import _build_av_timeline
+
+    timeline = _build_av_timeline(
+        [],
+        {
+            "chunks": [{
+                "chunk_id": "AUD002",
+                "start_sec": 60.0,
+                "end_sec": 120.0,
+            }],
+            "transcript_segments": [],
+            "audio_events": [{
+                "audio_event_id": "AE00001",
+                "event_type": "alert_tone",
+                "start_sec": 65.0,
+                "end_sec": 66.2,
+                "description": "Short warning chime",
+                "confidence": 0.8,
+                "source_chunk_id": "AUD002",
+                "timestamp_precision": "model_estimate",
+            }],
+            "signal_metrics": {},
+        },
+    )
+
+    assert len(timeline) == 1
+    assert timeline[0]["event_type"] == "audio_event"
+    assert timeline[0]["modality"] == "audio"
+    assert timeline[0]["start_sec"] == 65.0
+    assert timeline[0]["evidence_refs"] == ["AE00001", "AUD002"]
+    assert timeline[0]["timestamp_precision"] == "model_estimate"
