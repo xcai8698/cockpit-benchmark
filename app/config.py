@@ -16,7 +16,7 @@ class Settings:
     max_upload_mb: int = int(os.getenv("MAX_UPLOAD_MB", "2048"))
     max_video_duration_sec: int = int(os.getenv("MAX_VIDEO_DURATION_SEC", "7200"))
     sample_interval_sec: int = int(os.getenv("SAMPLE_INTERVAL_SEC", "5"))
-    max_frames: int = int(os.getenv("MAX_FRAMES", "12"))
+    max_frames: int = int(os.getenv("MAX_FRAMES", "120"))
     sampling_policy: str = os.getenv("SAMPLING_POLICY", "uniform_v1").strip().lower()
     scene_change_threshold: float = float(os.getenv("SCENE_CHANGE_THRESHOLD", "0.30"))
     scene_detection_timeout_sec: int = int(os.getenv("SCENE_DETECTION_TIMEOUT_SEC", "180"))
