@@ -48,7 +48,7 @@ Windows PowerShell 激活环境可用：
     AUDIO_TRANSCRIPTION_API_KEY=your-key
     AUDIO_TRANSCRIPTION_LANGUAGE=zh
     AUDIO_EVENT_BASE_URL=https://api.openai.com/v1
-    AUDIO_EVENT_MODEL=gpt-audio-mini
+    AUDIO_EVENT_MODEL=gpt-audio
     AUDIO_EVENT_API_KEY=your-key
     AUDIO_EVENT_MAX_CHUNKS=40
 
