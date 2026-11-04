@@ -128,3 +128,57 @@ def test_evidence_endpoint_rejects_unexpected_filename():
     })
     response = client.get(f"/api/v1/analyses/{analysis_id}/evidence/secret.txt")
     assert response.status_code == 400
+
+
+def test_supplemental_timestamp_parser_accepts_seconds_and_deduplicates():
+    assert main._parse_supplemental_timestamps("12.5, 18;12.5, 0") == [0.0, 12.5, 18.0]
+    assert main._parse_supplemental_timestamps(None) == []
+    assert main._parse_supplemental_timestamps(" , ; ") == []
+
+
+def test_supplemental_timestamp_parser_rejects_invalid_values():
+    from fastapi import HTTPException
+    import pytest
+
+    for value in ("NaN", "inf", "-1", "not-a-time"):
+        with pytest.raises(HTTPException) as error:
+            main._parse_supplemental_timestamps(value)
+        assert error.value.status_code == 422
+
+
+def test_supplemental_timestamp_parser_enforces_count_limit():
+    from fastapi import HTTPException
+    import pytest
+
+    raw = ",".join(str(i) for i in range(51))
+    with pytest.raises(HTTPException) as error:
+        main._parse_supplemental_timestamps(raw)
+    assert error.value.status_code == 422
+
+
+def test_audio_evidence_endpoint_serves_reference_and_chunks():
+    from uuid import uuid4
+    from app.storage import create_job, job_dir
+
+    analysis_id = uuid4().hex[:16]
+    create_job({
+        "analysis_id": analysis_id,
+        "status": "completed_unscored",
+        "stage": "awaiting_human_review",
+        "created_at": "2026-11-04T00:00:00+00:00",
+        "video_metadata": {"original_filename": "long-video.mp4"},
+    })
+    audio_dir = job_dir(analysis_id) / "audio"
+    audio_dir.mkdir(parents=True, exist_ok=True)
+    (audio_dir / "audio_source.flac").write_bytes(b"fLaC-reference")
+    (audio_dir / "audio_chunk_001.wav").write_bytes(b"RIFF-chunk")
+
+    source = client.get(f"/api/v1/analyses/{analysis_id}/audio/audio_source.flac")
+    chunk = client.get(f"/api/v1/analyses/{analysis_id}/audio/audio_chunk_001.wav")
+    invalid = client.get(f"/api/v1/analyses/{analysis_id}/audio/../../secret.txt")
+
+    assert source.status_code == 200
+    assert source.headers["content-type"].startswith("audio/flac")
+    assert chunk.status_code == 200
+    assert chunk.headers["content-type"].startswith("audio/wav")
+    assert invalid.status_code in (400, 404)

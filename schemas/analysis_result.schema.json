@@ -3,28 +3,661 @@
   "$id": "https://example.invalid/cockpit-benchmark/analysis-result.schema.json",
   "title": "Cockpit Benchmark Analysis Result",
   "type": "object",
-  "required": ["schema_version", "analysis_id", "created_at", "mode", "review_status", "rubric_id", "rubric_version", "video_metadata", "duration_sec", "sampled_frames", "observations", "scores", "overall_score_100", "warnings"],
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "created_at",
+    "mode",
+    "review_status",
+    "rubric_id",
+    "rubric_version",
+    "video_metadata",
+    "duration_sec",
+    "sampled_frames",
+    "observations",
+    "scores",
+    "overall_score_100",
+    "warnings"
+  ],
   "properties": {
-    "schema_version": {"type": "string"},
-    "analysis_id": {"type": "string"},
-    "created_at": {"type": "string", "format": "date-time"},
-    "mode": {"enum": ["openai_compatible_vlm", "no_model"]},
-    "model_name": {"type": ["string", "null"]},
-    "review_status": {"enum": ["pending", "approved", "rejected"]},
-    "reviewer": {"type": ["string", "null"]},
-    "reviewed_at": {"type": ["string", "null"]},
-    "review_notes": {"type": ["string", "null"]},
-    "review_history": {"type": "array", "items": {"type": "object"}},
-    "rubric_id": {"type": "string"},
-    "rubric_version": {"type": "string"},
-    "video_metadata": {"type": "object"},
-    "duration_sec": {"type": "number", "minimum": 0},
-    "sampled_frames": {"type": "array", "items": {"type": "object", "required": ["evidence_id", "timestamp_sec", "file_name", "sha256", "source_video"]}},
-    "observations": {"type": "array", "items": {"type": "object", "required": ["evidence_id", "observation"]}},
-    "scores": {"type": "array", "items": {"type": "object", "required": ["metric_id", "score", "status", "rationale", "evidence_ids", "weight"], "properties": {"score": {"type": ["integer", "null"], "minimum": 1, "maximum": 5}, "status": {"enum": ["scored", "evidence_insufficient"]}, "evidence_ids": {"type": "array", "items": {"type": "string"}}}}, "uniqueItems": true},
-    "overall_score_100": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
-    "warnings": {"type": "array", "items": {"type": "string"}},
-    "provenance_note": {"type": "string"}
+    "schema_version": {
+      "type": "string"
+    },
+    "analysis_id": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "mode": {
+      "enum": [
+        "openai_compatible_vlm",
+        "no_model"
+      ]
+    },
+    "model_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "review_status": {
+      "enum": [
+        "pending",
+        "approved",
+        "rejected"
+      ]
+    },
+    "reviewer": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reviewed_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "review_notes": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "review_history": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "rubric_id": {
+      "type": "string"
+    },
+    "rubric_version": {
+      "type": "string"
+    },
+    "video_metadata": {
+      "type": "object"
+    },
+    "duration_sec": {
+      "type": "number",
+      "minimum": 0
+    },
+    "sampled_frames": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "evidence_id",
+          "timestamp_sec",
+          "file_name",
+          "sha256",
+          "source_video"
+        ]
+      }
+    },
+    "sampling_manifest": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "policy_id",
+        "policy_version",
+        "interval_sec",
+        "max_frames",
+        "candidate_count",
+        "max_gap_sec"
+      ],
+      "properties": {
+        "policy_id": {
+          "type": "string"
+        },
+        "policy_version": {
+          "type": "string"
+        },
+        "interval_sec": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_frames": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "scene_detection_attempted": {
+          "type": "boolean"
+        },
+        "scene_detection_succeeded": {
+          "type": "boolean"
+        },
+        "scene_threshold": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "scene_change_candidates_sec": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "scene_change_timestamps_used_sec": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "supplemental_timestamps_requested_sec": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "supplemental_timestamps_used_sec": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "supplemental_timestamps_dropped_sec": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "candidate_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "selected_timestamps_sec": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "max_gap_sec": {
+          "type": "number",
+          "minimum": 0
+        },
+        "coverage_gaps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "start_sec",
+              "end_sec",
+              "duration_sec"
+            ],
+            "properties": {
+              "start_sec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "end_sec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "duration_sec": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "observations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "evidence_id",
+          "observation"
+        ]
+      }
+    },
+    "scores": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "metric_id",
+          "score",
+          "status",
+          "rationale",
+          "evidence_ids",
+          "weight"
+        ],
+        "properties": {
+          "score": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 5
+          },
+          "status": {
+            "enum": [
+              "scored",
+              "evidence_insufficient"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "uniqueItems": true
+    },
+    "overall_score_100": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 100
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "provenance_note": {
+      "type": "string"
+    },
+    "media_info": {
+      "type": "object"
+    },
+    "audio_manifest": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "available",
+        "transcription_status",
+        "chunks",
+        "transcript_segments"
+      ],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "stream_index": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "source_codec": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_sample_rate_hz": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "source_channels": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "analysis_sample_rate_hz": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "analysis_channels": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "analysis_format": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "duration_sec": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "chunk_duration_sec": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "chunk_overlap_sec": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "transcription_status": {
+          "enum": [
+            "not_configured",
+            "completed",
+            "partial",
+            "failed",
+            "skipped_no_audio"
+          ]
+        },
+        "transcription_model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "failed_chunk_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "chunks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "chunk_id",
+              "file_name",
+              "sha256",
+              "start_sec",
+              "end_sec",
+              "duration_sec",
+              "sample_rate_hz",
+              "channels",
+              "timestamp_semantics"
+            ],
+            "properties": {
+              "chunk_id": {
+                "type": "string"
+              },
+              "file_name": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string"
+              },
+              "start_sec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "end_sec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "duration_sec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "sample_rate_hz": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "channels": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "timestamp_semantics": {
+                "const": "source_video_timeline"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "signal_metrics": {
+          "type": "object"
+        },
+        "transcript_segments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "transcript_id",
+              "start_sec",
+              "end_sec",
+              "text",
+              "source_chunk_id",
+              "timestamp_precision"
+            ],
+            "properties": {
+              "transcript_id": {
+                "type": "string"
+              },
+              "start_sec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "end_sec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1
+              },
+              "source_chunk_id": {
+                "type": "string"
+              },
+              "timestamp_precision": {
+                "enum": [
+                  "asr_segment",
+                  "chunk_window"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "source_audio_file_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_audio_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_audio_size_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "event_analysis_status": {
+          "enum": [
+            "not_configured",
+            "completed",
+            "partial",
+            "failed"
+          ]
+        },
+        "event_analysis_model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "event_analysis_chunks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skipped_event_chunk_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "failed_event_chunk_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "audio_events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "audio_event_id",
+              "event_type",
+              "start_sec",
+              "end_sec",
+              "description",
+              "source_chunk_id",
+              "timestamp_precision"
+            ],
+            "properties": {
+              "audio_event_id": {
+                "type": "string"
+              },
+              "event_type": {
+                "enum": [
+                  "speech",
+                  "navigation_prompt",
+                  "voice_assistant",
+                  "alert_tone",
+                  "turn_signal_click",
+                  "button_feedback",
+                  "music",
+                  "cabin_noise",
+                  "other"
+                ]
+              },
+              "start_sec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "end_sec": {
+                "type": "number",
+                "minimum": 0
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1
+              },
+              "confidence": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1
+              },
+              "source_chunk_id": {
+                "type": "string"
+              },
+              "timestamp_precision": {
+                "const": "model_estimate"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "av_timeline": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "event_id",
+          "event_type",
+          "modality",
+          "start_sec",
+          "end_sec",
+          "description",
+          "evidence_refs",
+          "timestamp_precision"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string"
+          },
+          "event_type": {
+            "enum": [
+              "visual_frame",
+              "speech_transcript",
+              "audio_silence",
+              "audio_event"
+            ]
+          },
+          "modality": {
+            "enum": [
+              "visual",
+              "audio"
+            ]
+          },
+          "start_sec": {
+            "type": "number",
+            "minimum": 0
+          },
+          "end_sec": {
+            "type": "number",
+            "minimum": 0
+          },
+          "description": {
+            "type": "string"
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "timestamp_precision": {
+            "enum": [
+              "seek_target",
+              "asr_segment",
+              "chunk_window",
+              "signal_interval",
+              "model_estimate"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    }
   },
   "additionalProperties": false
 }

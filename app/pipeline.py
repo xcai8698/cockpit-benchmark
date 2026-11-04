@@ -7,10 +7,11 @@ from typing import Any
 from pydantic import ValidationError
 
 from .config import settings
-from .models import AnalysisResult, MetricScore, Observation, VideoMetadata
-from .providers.openai_compatible import ProviderError, analyze_frames
+from .audio import prepare_audio
+from .models import AnalysisResult, AudioManifest, MetricScore, Observation, SamplingManifest, VideoMetadata
+from .providers.openai_compatible import analyze_frames
 from .storage import get_job, result_file, update_job, utc_now, write_json_atomic
-from .video import extract_frames, probe_video, sample_timestamps
+from .video import build_sampling_plan, extract_frames, probe_video
 
 RUBRIC_PATH = Path(__file__).resolve().parents[1] / "config" / "rubric.v1.json"
 
@@ -124,6 +125,75 @@ def _normalise_model_output(
     return observations, scores, warnings
 
 
+def _build_av_timeline(
+    frames: list[Any], audio_manifest: dict[str, Any]
+) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    for frame in frames:
+        events.append({
+            "event_type": "visual_frame",
+            "modality": "visual",
+            "start_sec": frame.timestamp_sec,
+            "end_sec": frame.timestamp_sec,
+            "description": f"Visual evidence frame {frame.evidence_id}",
+            "evidence_refs": [frame.evidence_id],
+            "timestamp_precision": "seek_target",
+        })
+
+    chunks = audio_manifest.get("chunks", [])
+    for segment in audio_manifest.get("transcript_segments", []):
+        events.append({
+            "event_type": "speech_transcript",
+            "modality": "audio",
+            "start_sec": segment["start_sec"],
+            "end_sec": segment["end_sec"],
+            "description": segment["text"][:2000],
+            "evidence_refs": [segment["transcript_id"], segment["source_chunk_id"]],
+            "timestamp_precision": (
+                "asr_segment" if segment.get("timestamp_precision") == "asr_segment"
+                else "chunk_window"
+            ),
+        })
+
+    for event in audio_manifest.get("audio_events", []):
+        events.append({
+            "event_type": "audio_event",
+            "modality": "audio",
+            "start_sec": float(event["start_sec"]),
+            "end_sec": float(event["end_sec"]),
+            "description": (
+                f'{event["event_type"]}: {event["description"]}'
+                + (f' (model confidence {event["confidence"]:.2f})' if event.get("confidence") is not None else "")
+                + " [timestamp is a model estimate]"
+            )[:2000],
+            "evidence_refs": [event["audio_event_id"], event["source_chunk_id"]],
+            "timestamp_precision": "model_estimate",
+        })
+
+    metrics = audio_manifest.get("signal_metrics", {})
+    for silence in metrics.get("silence_intervals", []):
+        start = float(silence["start_sec"])
+        end = float(silence["end_sec"])
+        chunk_refs = [
+            chunk["chunk_id"] for chunk in chunks
+            if float(chunk["start_sec"]) <= start < float(chunk["end_sec"])
+        ]
+        events.append({
+            "event_type": "audio_silence",
+            "modality": "audio",
+            "start_sec": start,
+            "end_sec": end,
+            "description": f"Near-silence detected ({float(silence['duration_sec']):.2f}s, threshold -50 dBFS)",
+            "evidence_refs": chunk_refs,
+            "timestamp_precision": "signal_interval",
+        })
+
+    events.sort(key=lambda item: (item["start_sec"], item["end_sec"], item["modality"]))
+    for index, event in enumerate(events, start=1):
+        event["event_id"] = f"EV{index:05d}"
+    return events
+
+
 def run_analysis(job_id: str) -> None:
     job = get_job(job_id)
     if job is None:
@@ -134,11 +204,53 @@ def run_analysis(job_id: str) -> None:
         if not video_path.exists():
             raise FileNotFoundError("Uploaded video file no longer exists")
         probe = probe_video(video_path)
-        timestamps = sample_timestamps(
-            float(probe["duration_sec"]), settings.sample_interval_sec, settings.max_frames
+        if float(probe["duration_sec"]) > settings.max_video_duration_sec:
+            raise ValueError(
+                f"Video duration {float(probe['duration_sec']):.1f}s exceeds "
+                f"MAX_VIDEO_DURATION_SEC={settings.max_video_duration_sec}"
+            )
+        sampling_options = job.get("sampling_options") or {}
+        sampling_plan = build_sampling_plan(
+            video_path,
+            float(probe["duration_sec"]),
+            settings.sample_interval_sec,
+            settings.max_frames,
+            policy_id=settings.sampling_policy,
+            supplemental_timestamps=sampling_options.get("supplemental_timestamps_sec", []),
         )
-        update_job(job_id, stage="extracting_frames", duration_sec=probe["duration_sec"])
+        timestamps = sampling_plan.timestamps
+        update_job(
+            job_id,
+            stage="extracting_frames",
+            duration_sec=probe["duration_sec"],
+            sampling_policy_id=sampling_plan.manifest["policy_id"],
+            sampling_frame_count=len(timestamps),
+        )
         evidence_models = extract_frames(video_path, job_id, timestamps)
+
+        update_job(job_id, stage="extracting_audio", audio_status="processing")
+        try:
+            audio_manifest_data, audio_warnings = prepare_audio(
+                video_path,
+                job_id,
+                audio_stream=probe.get("audio_stream"),
+                duration_sec=float(probe["duration_sec"]),
+            )
+        except Exception as exc:
+            # A broken or unsupported audio track must not discard otherwise valid visual evidence.
+            audio_manifest_data = {
+                "available": bool(probe.get("audio_stream")),
+                "transcription_status": "failed",
+                "chunks": [],
+                "transcript_segments": [],
+            }
+            audio_warnings = [f"Audio processing failed; visual analysis continues: {type(exc).__name__}: {exc}"]
+        update_job(
+            job_id,
+            audio_status=audio_manifest_data.get("transcription_status", "not_configured"),
+            audio_chunks_count=len(audio_manifest_data.get("chunks", [])),
+            transcript_segments_count=len(audio_manifest_data.get("transcript_segments", [])),
+        )
         frames_dir = settings.jobs_dir / job_id / "frames"
         frames_for_model = [
             {
@@ -150,7 +262,7 @@ def run_analysis(job_id: str) -> None:
         ]
         rubric = load_rubric()
         metadata = VideoMetadata(**job["video_metadata"])
-        warnings: list[str] = []
+        warnings: list[str] = list(sampling_plan.warnings) + audio_warnings
 
         if settings.provider_enabled:
             update_job(job_id, stage="vlm_analysis")
@@ -194,7 +306,19 @@ def run_analysis(job_id: str) -> None:
             rubric_version=rubric["version"],
             video_metadata=metadata,
             duration_sec=float(probe["duration_sec"]),
+            media_info={
+                "format_name": probe.get("format_name"),
+                "size_bytes": probe.get("size_bytes"),
+                "bit_rate": probe.get("bit_rate"),
+                "video_stream": probe.get("video_stream"),
+                "audio_stream": probe.get("audio_stream"),
+                "audio_stream_count": probe.get("audio_stream_count", 0),
+                "video_stream_count": probe.get("video_stream_count", 0),
+            },
             sampled_frames=evidence_models,
+            audio_manifest=AudioManifest(**audio_manifest_data),
+            av_timeline=_build_av_timeline(evidence_models, audio_manifest_data),
+            sampling_manifest=SamplingManifest(**sampling_plan.manifest),
             observations=observations,
             scores=scores,
             overall_score_100=overall,

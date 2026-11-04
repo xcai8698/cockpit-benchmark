@@ -13,14 +13,15 @@ button{border:0;border-radius:8px;padding:10px 14px;background:var(--blue);color
 .scores{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:12px}.score{border:1px solid var(--line);border-radius:9px;padding:10px}.score strong{display:block;font-size:18px}.frames{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.frame{width:175px;font-size:12px;color:var(--muted)}.frame img{width:100%;aspect-ratio:16/9;object-fit:contain;background:#111;border-radius:7px;display:block}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f7f9fb;padding:12px;border-radius:8px;max-height:260px;overflow:auto}
 @media(max-width:700px){.grid,.scores{grid-template-columns:1fr}header{padding:18px}}
 </style></head>
-<body><header><h1>座舱竞品 Benchmark</h1><div class="muted">视频上传 → 可追溯证据帧 → 结构化报告 → 人工复核。未配置 VLM 时只抽帧，不生成分数。</div></header>
+<body><header><h1>座舱竞品 Benchmark</h1><div class="muted">长视频上传 → 视觉证据 + 音轨 / 转写 → 统一时间轴 → 结构化报告 → 人工复核。当前自动评分仍为视觉单模态。</div></header>
 <main><section class="panel"><h2>新建分析任务</h2>
 <form id="form" class="grid">
 <label class="full">视频文件（MP4 / MOV / MKV / WEBM / AVI）<input name="video" type="file" accept="video/*" required></label>
 <label>品牌<input name="vehicle_make" placeholder="可选"></label><label>车型<input name="vehicle_model" placeholder="可选"></label>
 <label>年款<input name="model_year" placeholder="例如 2026"></label><label>软件版本<input name="software_version" placeholder="可选"></label>
 <label class="full">体验场景<input name="scenario" placeholder="例如：导航目的地搜索、空调控制"></label>
-<label class="full">原始视频链接（仅记录，不自动下载）<input name="source_url" type="url" placeholder="https://…"></label>
+<label class="full">补充关键证据时间点（秒，可选）<input name="supplemental_timestamps_sec" placeholder="例如：12.5, 18, 42.2"><span class="muted">用逗号或分号分隔。适合补充转向灯、弹窗、状态变化等短暂片段；不会改变全局抽帧上限。</span></label>
+<label class="full">原始视频来源页（仅记录，不自动下载）<input name="source_url" type="url" placeholder="例如 https://www.xchuxing.com/video/9888；仍需上传本地视频文件"></label>
 <div class="full"><button id="submit" type="submit">上传并分析</button> <span id="message" class="muted"></span></div>
 </form><div class="note">正式榜单前必须人工复核。评分仅针对视频中可观察到的内容，不推断未展示的功能或内部性能。请只上传获准使用的视频。</div>
 </section><section class="panel"><h2>最近任务</h2><div id="jobs" class="muted">正在加载…</div></section></main>
@@ -34,6 +35,60 @@ async function review(id,decision){const reviewer=prompt('审核人标识（姓�
 async function render(job){const box=el('article',undefined,'job'),head=el('div');head.append(el('strong',job.video_metadata?.original_filename||job.analysis_id),el('span',job.status+(job.stage?' · '+job.stage:''),'status'));box.append(head);box.append(el('div',[job.video_metadata?.vehicle_make,job.video_metadata?.vehicle_model,job.video_metadata?.model_year,job.video_metadata?.scenario].filter(Boolean).join(' · ')||'未填写车型/场景','muted'));
 if(job.error)box.append(el('pre',job.error));
 if(['completed','completed_unscored'].includes(job.status)){try{const report=await api('/api/v1/analyses/'+job.analysis_id+'/report');box.append(el('div','Rubric '+report.rubric_id+' v'+report.rubric_version+' · '+report.mode+' · 复核：'+report.review_status,'muted'));
+if(report.sampling_manifest){
+ const sm=report.sampling_manifest;
+ box.append(el('div','抽帧策略：'+sm.policy_id+' v'+sm.policy_version+' · 间隔 '+sm.interval_sec+'s · 帧预算 '+sm.max_frames+' · 实际 '+sm.selected_timestamps_sec.length+' 帧','muted'));
+ if(sm.supplemental_timestamps_used_sec?.length)box.append(el('div','补充时间点：'+sm.supplemental_timestamps_used_sec.map(t=>t+'s').join(', '),'muted'));
+ if(sm.scene_detection_attempted)box.append(el('div','场景切换检测：'+(sm.scene_detection_succeeded?'已完成（候选 '+sm.scene_change_candidates_sec.length+' 个）':'未完成，使用时序覆盖回退'),'muted'));
+ if(sm.coverage_gaps?.length)box.append(el('div','采样覆盖缺口（大于目标间隔）：'+sm.coverage_gaps.map(g=>g.start_sec+'–'+g.end_sec+'s').join(', '),'muted'));
+}
+if(report.audio_manifest){
+ const am=report.audio_manifest;
+ box.append(el('div','音频证据：'+(am.available?'已提取':'未发现音轨')+' · ASR：'+am.transcription_status+' · 声音事件：'+(am.event_analysis_status||'not_configured')+'（'+(am.audio_events?.length||0)+'） · 音频分段：'+(am.chunks?.length||0),'muted'));
+ if(am.signal_metrics){
+  const metrics=am.signal_metrics;
+  const summary=[
+   metrics.peak_dbfs!=null?'峰值 '+metrics.peak_dbfs+' dBFS':null,
+   metrics.rms_dbfs!=null?'RMS '+metrics.rms_dbfs+' dBFS':null,
+   '静音区间 '+(metrics.silence_interval_count||0)
+  ].filter(Boolean).join(' · ');
+  if(summary)box.append(el('div',summary,'muted'));
+ }
+ if(am.source_audio_file_name){
+  box.append(el('div','原始音轨回放（保留原声道与采样率）'));
+  const sourcePlayer=el('audio');sourcePlayer.controls=true;sourcePlayer.preload='none';sourcePlayer.src='/api/v1/analyses/'+job.analysis_id+'/audio/'+am.source_audio_file_name;sourcePlayer.style.width='100%';box.append(sourcePlayer);
+ }
+ if(am.transcript_segments?.length){
+  box.append(el('div','语音转写（'+am.transcript_segments.length+' 段）'));
+  const transcript=el('div',undefined,'muted');
+  transcript.style.maxHeight='220px';transcript.style.overflow='auto';transcript.style.padding='8px';transcript.style.background='#f7f9fb';transcript.style.borderRadius='8px';
+  for(const seg of am.transcript_segments){
+   transcript.append(el('div','['+Number(seg.start_sec).toFixed(1)+'–'+Number(seg.end_sec).toFixed(1)+'s] '+seg.text));
+  }
+  box.append(transcript);
+ }
+ if(report.av_timeline?.length){
+  const timeline=el('details'),timelineSummary=el('summary','查看统一视听时间轴（'+report.av_timeline.length+' 个事件）');timeline.append(timelineSummary);
+  for(const event of report.av_timeline){
+   const row=el('div');row.style.padding='6px 0';row.style.borderBottom='1px solid #e5eaf0';
+   const time=event.start_sec===event.end_sec?Number(event.start_sec).toFixed(1)+'s':Number(event.start_sec).toFixed(1)+'–'+Number(event.end_sec).toFixed(1)+'s';
+   row.append(el('div',time+' · '+event.modality+' / '+event.event_type,'muted'));
+   row.append(el('div',event.description));
+   if(event.evidence_refs?.length)row.append(el('div','证据：'+event.evidence_refs.join(', '),'muted'));
+   timeline.append(row);
+  }
+  box.append(timeline);
+ }
+ if(am.chunks?.length){
+  const details=el('details'),summary=el('summary','查看音频片段 / 播放证据');details.append(summary);
+  for(const chunk of am.chunks){
+   const row=el('div');row.style.marginTop='8px';
+   row.append(el('div',chunk.chunk_id+' · '+Number(chunk.start_sec).toFixed(1)+'–'+Number(chunk.end_sec).toFixed(1)+'s','muted'));
+   const player=el('audio');player.controls=true;player.preload='none';player.src='/api/v1/analyses/'+job.analysis_id+'/audio/'+chunk.file_name;player.style.width='100%';row.append(player);details.append(row);
+  }
+  box.append(details);
+ }
+}
 const scores=el('div',undefined,'scores');for(const s of report.scores){const c=el('div',undefined,'score');c.append(el('div',s.metric_id),el('strong',s.score==null?'证据不足 / 未评分':s.score+' / 5'),el('div',s.rationale,'muted'),el('div','证据：'+(s.evidence_ids.join(', ')||'无'),'muted'));scores.append(c);}box.append(scores);
 box.append(el('div','证据帧（'+report.sampled_frames.length+'）'));const frames=el('div',undefined,'frames');for(const f of report.sampled_frames){const c=el('div',undefined,'frame'),img=el('img');img.loading='lazy';img.src='/api/v1/analyses/'+job.analysis_id+'/evidence/'+f.file_name;img.alt=f.evidence_id;c.append(img,el('div',f.evidence_id+' · 目标时间 '+Number(f.timestamp_sec).toFixed(3)+'s'));frames.append(c);}box.append(frames);
 if(report.warnings?.length)box.append(el('pre','提示：\n'+report.warnings.join('\n')));

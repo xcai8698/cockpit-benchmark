@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 import uuid
 from pathlib import Path
@@ -15,7 +16,7 @@ from .pipeline import run_analysis
 from .storage import create_job, get_job, job_dir, list_jobs, read_json, result_file, update_job, utc_now, write_json_atomic
 
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi"}
-app = FastAPI(title=settings.app_name, version="0.1.0", description="Evidence-linked cockpit video analysis MVP")
+app = FastAPI(title=settings.app_name, version="0.1.0", description="Evidence-linked audiovisual cockpit analysis MVP")
 
 
 class ReviewRequest(BaseModel):
@@ -27,6 +28,31 @@ class ReviewRequest(BaseModel):
 def _validate_analysis_id(analysis_id: str) -> None:
     if not re.fullmatch(r"[0-9a-f]{16}", analysis_id):
         raise HTTPException(status_code=404, detail="Analysis not found")
+
+
+def _parse_supplemental_timestamps(raw: str | None) -> list[float]:
+    """Parse optional comma/semicolon-separated frame timestamps in seconds."""
+    if not raw or not raw.strip():
+        return []
+    tokens = [token.strip() for token in re.split(r"[,;]", raw) if token.strip()]
+    if len(tokens) > 50:
+        raise HTTPException(status_code=422, detail="At most 50 supplemental timestamps are allowed")
+    values: list[float] = []
+    for token in tokens:
+        try:
+            value = float(token)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid supplemental timestamp: {token!r}",
+            ) from exc
+        if not math.isfinite(value) or value < 0:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Supplemental timestamps must be finite, non-negative seconds: {token!r}",
+            )
+        values.append(round(value, 3))
+    return sorted(set(values))
 
 
 def _public_job(job: dict) -> dict:
@@ -62,6 +88,9 @@ def health():
         "mode": "openai_compatible_vlm" if settings.provider_enabled else "no_model",
         "ffmpeg_available": __import__("shutil").which(settings.ffmpeg_bin) is not None,
         "ffprobe_available": __import__("shutil").which(settings.ffprobe_bin) is not None,
+        "max_upload_mb": settings.max_upload_mb,
+        "max_video_duration_sec": settings.max_video_duration_sec,
+        "audio_transcription_enabled": settings.audio_transcription_enabled,
     }
 
 
@@ -80,7 +109,9 @@ async def create_analysis(
     software_version: Annotated[str | None, Form()] = None,
     scenario: Annotated[str | None, Form()] = None,
     source_url: Annotated[str | None, Form()] = None,
+    supplemental_timestamps_sec: Annotated[str | None, Form()] = None,
 ):
+    supplemental_timestamps = _parse_supplemental_timestamps(supplemental_timestamps_sec)
     original_name = safe_name(video.filename)
     extension = Path(original_name).suffix.lower()
     if extension not in ALLOWED_EXTENSIONS:
@@ -128,6 +159,7 @@ async def create_analysis(
         "video_path": str(video_path),
         "video_size_bytes": size_bytes,
         "video_metadata": metadata,
+        "sampling_options": {"supplemental_timestamps_sec": supplemental_timestamps},
         "error": None,
     }
     create_job(job)
@@ -205,6 +237,21 @@ def evidence_file(analysis_id: str, filename: str):
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Evidence frame not found")
     return FileResponse(path, media_type="image/jpeg", filename=filename)
+
+
+@app.get("/api/v1/analyses/{analysis_id}/audio/{filename}")
+def audio_evidence_file(analysis_id: str, filename: str):
+    _validate_analysis_id(analysis_id)
+    if filename != "audio_source.flac" and not re.fullmatch(r"audio_chunk_\d{3}\.wav", filename):
+        raise HTTPException(status_code=400, detail="Invalid audio evidence filename")
+    job = get_job(analysis_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    path = job_dir(analysis_id) / "audio" / filename
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Audio evidence file not found")
+    media_type = "audio/flac" if filename.endswith(".flac") else "audio/wav"
+    return FileResponse(path, media_type=media_type, filename=filename)
 
 
 @app.get("/api/v1/rubric")
