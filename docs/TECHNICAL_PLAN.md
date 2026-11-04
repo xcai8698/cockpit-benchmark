@@ -9,7 +9,10 @@ Build a reproducible, evidence-grounded workflow for comparing cockpit experienc
 
 Implemented:
 - Manual upload of a local video file.
-- FFprobe duration check and FFmpeg frame extraction.
+- FFprobe format/video/audio stream inspection and FFmpeg frame extraction.
+- Long-video configuration (default 2 GB upload limit and 2-hour duration cap).
+- Audio extraction to mono 16 kHz PCM, 60-second overlapping chunks, signal-level RMS/peak/silence indicators, and optional timestamped ASR.
+- Unified audiovisual timeline linking visual frames, transcript segments, and detected near-silence intervals to source-time evidence.
 - Evidence IDs, seek-target timestamps, frame dimensions, and SHA-256 hashes.
 - Versioned sampling manifest; optional manually supplied timestamps; opt-in FFmpeg scene-cut detection with temporal-coverage fallback.
 - Optional OpenAI-compatible VLM call using sampled frames.
@@ -26,8 +29,10 @@ Not implemented yet:
 ## 2. Architecture
 
 Browser UI -> FastAPI Analyzer -> local job/report JSON
-FastAPI Analyzer -> FFprobe/FFmpeg -> sampled frames + evidence manifest
-Sampled frames -> optional VLM -> normalized observations and rubric scores
+FastAPI Analyzer -> FFprobe -> format, video stream and audio stream metadata
+Video stream -> FFmpeg -> sampled frames + versioned visual sampling manifest
+Audio stream -> FFmpeg -> mono 16 kHz PCM -> overlapped 60-second chunks -> signal metrics + optional timestamped ASR
+Visual evidence + transcript + silence intervals -> unified AV timeline -> optional visual VLM (image-only in this iteration)
 No VLM configured -> evidence-only / unscored report
 Report -> human review before publication
 
@@ -48,7 +53,19 @@ AIHOT integration scaffold is separate from the Analyzer and has not been regist
 | app/static/index.html | Browser UI |
 | integrations/aihot-module/cockpit-benchmark | Host-side integration scaffold |
 
-## 4. Evidence and scoring rules
+## 4. Long-video audio processing
+
+- Default upload cap is 2048 MB and maximum duration is 7200 seconds; both are configurable. The reverse proxy and host storage must be configured consistently.
+- FFprobe records the selected video and audio stream metadata, including codec, dimensions/frame rate, audio sample rate and channels.
+- FFmpeg extracts the first audio stream to mono 16 kHz signed 16-bit PCM for analysis. The temporary full-length WAV is removed after chunking.
+- Audio is split into 60-second WAV chunks with 1-second overlap. Each chunk is stored with start/end time on the source-video timeline and SHA-256.
+- FFmpeg `astats` and `silencedetect` provide basic peak/RMS and near-silence indicators. These are signal measurements, not semantic classification or subjective sound-quality scores.
+- Optional ASR uses an OpenAI-compatible `/audio/transcriptions` endpoint, requests verbose segment timestamps, offsets each segment into the source-video timeline, and deduplicates exact repeated text in chunk overlaps. If only whole-chunk text is returned, timestamp precision is explicitly marked as `chunk_window`.
+- Transcription is optional and can incur provider charges. Failed ASR chunks are reported without discarding the visual evidence.
+- `av_timeline` currently links visual frame timestamps, ASR transcript segments and detected near-silence intervals. It does not yet contain sound-event semantics such as turn-indicator clicks, alerts, music or cabin noise classification.
+- Current VLM remains image-only. The report does not claim audiovisual joint understanding or audio-based cockpit scoring. A later multimodal evaluator must ingest aligned audio segments and visual evidence together and cite both.
+
+## 5. Evidence and scoring rules
 
 - Every extracted image has an evidence ID, seek-target timestamp, dimensions, filename, and SHA-256 hash.
 - Each report records `sampling_manifest` with policy/version, interval and frame cap, selected timestamps, scene candidates, supplemental timestamp disposition, maximum gap, and coverage gaps.
@@ -61,7 +78,7 @@ AIHOT integration scaffold is separate from the Analyzer and has not been regist
 - A report is provisional by default. Local review refuses approval for no-model or incomplete score sets.
 - Rubric v1 is a project draft, not an industry standard and not a claim of equivalence to MISTA or J.D. Power.
 
-## 5. API endpoints
+## 6. API endpoints
 
 - GET /health — health, run mode, FFmpeg/FFprobe availability.
 - GET / — upload and review UI.
@@ -70,10 +87,11 @@ AIHOT integration scaffold is separate from the Analyzer and has not been regist
 - GET /api/v1/analyses/{id} — job status; filesystem path is omitted.
 - GET /api/v1/analyses/{id}/report — structured report JSON.
 - GET /api/v1/analyses/{id}/evidence/{filename} — sampled evidence frame.
+- GET /api/v1/analyses/{id}/audio/{filename} — extracted timestamped audio chunk.
 - POST /api/v1/analyses/{id}/review — local review decision.
 - GET /api/v1/rubric — current rubric.
 
-## 6. Local run
+## 7. Local run
 
 Requirements: Python 3.12 recommended, FFmpeg and FFprobe on PATH. From the repository root:
 
@@ -89,7 +107,7 @@ With OPENAI_BASE_URL and VLM_MODEL unset, the app is for upload/probe/frame-extr
 
 Docker Compose expects a local .env file and persists job/video files under ./data.
 
-## 7. Security and deployment boundary
+## 8. Security and deployment boundary
 
 This is an internal-development MVP, not an internet-facing service. Before shared use:
 1. Add authentication and authorization to upload, read, evidence, and review endpoints.
@@ -99,7 +117,7 @@ This is an internal-development MVP, not an internet-facing service. Before shar
 5. Treat source URLs as descriptive metadata only; the code does not fetch remote URLs.
 6. Adapt the AIHOT scaffold against a specific source checkout, then run its typecheck, tests, migrations, and end-to-end tests.
 
-## 8. Sampling policy and acceptance notes
+## 9. Sampling policy and acceptance notes
 
 - Default stays on `uniform_v1` until a fixed set of videos demonstrates that scene-aware sampling improves evidence recall without unfairly changing temporal coverage.
 - `scene_aware_v1` uses a downsampled proxy stream and an FFmpeg scene score threshold. A scene cut is only a visual transition candidate, not proof of an interaction or a state change.
@@ -107,7 +125,7 @@ This is an internal-development MVP, not an internet-facing service. Before shar
 - Review short interactions (turn-signal telltales, popups, transient warnings) using explicit supplemental timestamps until a validated interaction/event detector exists.
 - The planner is deterministic for a given duration, configuration, scene-candidate list, and supplemental timestamp list. FFmpeg version and source-video hash should also be pinned in a production audit record.
 
-## 9. Next milestones
+## 10. Next milestones
 
 Sprint 3 — CI hardening: keep the GitHub Actions Python suite green, add tests for upload boundaries and evidence/report invariants, and fix packaging issues revealed by clean CI runs.
 
@@ -115,4 +133,6 @@ Sprint 4 — VLM quality loop: create a small human-labelled set of authorized c
 
 Sprint 5 — AIHOT integration: inspect actual module contracts, register UI/API/worker, run migration against PostgreSQL, protect endpoints, and verify ranking eligibility only admits approved complete reports.
 
-Sprint 6 — discovery automation: add only explicitly permitted RSS or source adapters, deduplicate by canonical URL and content hash, retain provenance, and surface discovery/download failures as explicit queue states.
+Sprint 6 — audiovisual evaluator: add configurable audio-capable model adapter for sound-event classification and joint AV reasoning; require timestamped visual/audio evidence references, and build a human-labelled evaluation set for timing, event recall and cross-modal consistency.
+
+Sprint 7 — discovery automation: add only explicitly permitted RSS or source adapters, deduplicate by canonical URL and content hash, retain provenance, and surface discovery/download failures as explicit queue states.
