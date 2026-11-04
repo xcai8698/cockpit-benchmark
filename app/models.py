@@ -96,6 +96,17 @@ class AudioManifest(BaseModel):
     failed_chunk_ids: list[str] = Field(default_factory=list)
 
 
+class AVTimelineEvent(BaseModel):
+    event_id: str
+    event_type: Literal["visual_frame", "speech_transcript", "audio_silence"]
+    modality: Literal["visual", "audio"]
+    start_sec: float = Field(ge=0)
+    end_sec: float = Field(ge=0)
+    description: str = Field(min_length=1, max_length=2000)
+    evidence_refs: list[str] = Field(default_factory=list)
+    timestamp_precision: Literal["seek_target", "asr_segment", "chunk_window", "signal_interval"]
+
+
 class Observation(BaseModel):
     evidence_id: str
     observation: str = Field(min_length=1, max_length=1200)
@@ -140,6 +151,7 @@ class AnalysisResult(BaseModel):
     sampled_frames: list[EvidenceFrame]
     sampling_manifest: SamplingManifest | None = None
     audio_manifest: AudioManifest | None = None
+    av_timeline: list[AVTimelineEvent] = Field(default_factory=list)
     observations: list[Observation] = Field(default_factory=list)
     scores: list[MetricScore]
     overall_score_100: float | None = None
