@@ -110,3 +110,31 @@ def test_coverage_gap_manifest_is_deterministic():
     assert first.manifest == second.manifest
     assert first.manifest["max_gap_sec"] >= 0
     assert isinstance(first.manifest["coverage_gaps"], list)
+
+
+def test_probe_video_returns_audio_and_video_stream_metadata(tmp_path, monkeypatch):
+    import json
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(video.shutil, "which", lambda _name: "/usr/bin/ffprobe")
+    payload = {
+        "format": {"duration": "1800.5", "format_name": "mov,mp4", "size": "123456", "bit_rate": "5000000"},
+        "streams": [
+            {"index": 0, "codec_type": "video", "codec_name": "h264", "width": 1920, "height": 1080, "avg_frame_rate": "30/1"},
+            {"index": 1, "codec_type": "audio", "codec_name": "aac", "sample_rate": "48000", "channels": 2},
+        ],
+    }
+    def fake_run(command, **_kwargs):
+        assert "-show_format" in command
+        assert "-show_streams" in command
+        return SimpleNamespace(returncode=0, stdout=json.dumps(payload), stderr="")
+    monkeypatch.setattr(video.subprocess, "run", fake_run)
+
+    result = video.probe_video(tmp_path / "sample.mp4")
+
+    assert result["duration_sec"] == 1800.5
+    assert result["size_bytes"] == 123456
+    assert result["video_stream"]["codec_name"] == "h264"
+    assert result["audio_stream"]["index"] == 1
+    assert result["audio_stream"]["sample_rate"] == 48000
+    assert result["audio_stream"]["channels"] == 2
