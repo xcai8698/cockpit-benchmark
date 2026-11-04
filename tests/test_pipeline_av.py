@@ -33,10 +33,10 @@ def test_av_timeline_aligns_visual_transcript_and_silence_evidence():
     events = _build_av_timeline(frames, audio_manifest)
 
     assert [event["event_type"] for event in events] == [
-        "visual_frame", "speech_transcript", "audio_silence", "visual_frame"
+        "speech_transcript", "visual_frame", "audio_silence", "visual_frame"
     ]
-    assert events[1]["start_sec"] == 11.2
-    assert events[1]["evidence_refs"] == ["T00001", "AUD001"]
+    assert events[0]["start_sec"] == 11.2
+    assert events[0]["evidence_refs"] == ["T00001", "AUD001"]
     assert events[2]["evidence_refs"] == ["AUD001"]
     assert [event["event_id"] for event in events] == [
         "EV00001", "EV00002", "EV00003", "EV00004"
