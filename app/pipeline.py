@@ -7,9 +7,9 @@ from typing import Any
 from pydantic import ValidationError
 
 from .config import settings
-from .audio import AudioProcessingError, prepare_audio
+from .audio import prepare_audio
 from .models import AnalysisResult, AudioManifest, MetricScore, Observation, SamplingManifest, VideoMetadata
-from .providers.openai_compatible import ProviderError, analyze_frames
+from .providers.openai_compatible import analyze_frames
 from .storage import get_job, result_file, update_job, utc_now, write_json_atomic
 from .video import build_sampling_plan, extract_frames, probe_video
 
@@ -147,7 +147,7 @@ def _build_av_timeline(
             "modality": "audio",
             "start_sec": segment["start_sec"],
             "end_sec": segment["end_sec"],
-            "description": segment["text"],
+            "description": segment["text"][:2000],
             "evidence_refs": [segment["transcript_id"], segment["source_chunk_id"]],
             "timestamp_precision": (
                 "asr_segment" if segment.get("timestamp_precision") == "asr_segment"
