@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from app import audio
+from app.models import AudioManifest
 from app.providers import openai_transcription
 
 
@@ -90,6 +91,7 @@ def test_prepare_audio_extracts_chunks_without_transcription(tmp_path, monkeypat
     assert len(manifest["chunks"]) == 2
     assert manifest["chunks"][1]["start_sec"] == 2.0
     assert manifest["transcription_status"] == "not_configured"
+    AudioManifest(**manifest)
     assert any("ASR is not configured" in warning for warning in warnings)
     assert not (fake_settings.jobs_dir / "testjob" / "audio" / ".analysis_audio.tmp.wav").exists()
 
